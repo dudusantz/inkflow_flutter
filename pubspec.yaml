@@ -1,0 +1,28 @@
+name: inkflow
+description: InkFlow - Plataforma para tatuadores e clientes
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  go_router: ^14.0.0
+  fl_chart: ^0.68.0
+  cached_network_image: ^3.3.1
+  intl: 0.20.2
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/inkflow_logo.png
