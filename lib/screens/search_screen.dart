@@ -3,46 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
-enum SearchScenario { results, noParams }
-
 const _styles = ['Black Work', 'Realismo', 'Geométrico', 'Aquarela', 'Old School', 'Minimalista'];
 const _locations = ['São Paulo, SP', 'Rio de Janeiro, RJ', 'Belo Horizonte, MG', 'Curitiba, PR'];
-
-const _artists = [
-  {
-    'id': 1,
-    'name': 'Ana Ferreira',
-    'location': 'São Paulo, SP',
-    'styles': ['Black Work', 'Geométrico'],
-    'rating': 4.9,
-    'reviews': 128,
-    'price': 'A partir de R\$ 300',
-    'avatar': 'https://images.unsplash.com/photo-1612271974453-15e684c6586b?w=80&h=80&fit=crop&crop=face',
-    'portfolio': 'https://images.unsplash.com/photo-1645318588650-f0fb322cd740?w=160&h=100&fit=crop',
-  },
-  {
-    'id': 2,
-    'name': 'Rafael Costa',
-    'location': 'São Paulo, SP',
-    'styles': ['Realismo', 'Old School'],
-    'rating': 4.7,
-    'reviews': 94,
-    'price': 'A partir de R\$ 450',
-    'avatar': 'https://images.unsplash.com/photo-1544604725-0ffa9861dec2?w=80&h=80&fit=crop&crop=face',
-    'portfolio': 'https://images.unsplash.com/photo-1645542335615-3acf176850bc?w=160&h=100&fit=crop',
-  },
-  {
-    'id': 3,
-    'name': 'Julia Mendes',
-    'location': 'São Paulo, SP',
-    'styles': ['Aquarela', 'Minimalista'],
-    'rating': 4.8,
-    'reviews': 76,
-    'price': 'A partir de R\$ 250',
-    'avatar': 'https://images.unsplash.com/photo-1612271974453-15e684c6586b?w=80&h=80&fit=crop&crop=faces',
-    'portfolio': 'https://images.unsplash.com/photo-1576134902784-d41806b7614f?w=160&h=100&fit=crop',
-  },
-];
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -52,27 +14,39 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  SearchScenario _scenario = SearchScenario.results;
-  List<String> _selectedStyles = ['Black Work'];
-  String _selectedLocation = 'São Paulo, SP';
-  bool _searched = true;
+  final List<String> _selectedStyles = [];
+  String _selectedLocation = '';
+  
+  bool _searched = false;
   bool _showError = false;
 
-  void _applyScenario(SearchScenario s) {
-    setState(() {
-      _scenario = s;
-      _searched = false;
-      _showError = false;
-      if (s == SearchScenario.noParams) {
-        _selectedStyles = [];
-        _selectedLocation = '';
-      } else {
-        _selectedStyles = ['Black Work'];
-        _selectedLocation = 'São Paulo, SP';
-        _searched = true;
-      }
-    });
-  }
+  // Lista simulando o banco de dados (que substituirá os mocks)
+  final List<Map<String, dynamic>> _allArtists = [
+    {
+      'id': 1,
+      'name': 'Ana Ferreira',
+      'location': 'São Paulo, SP',
+      'styles': ['Black Work', 'Geométrico'],
+      'rating': 4.9,
+      'reviews': 128,
+      'price': 'A partir de R\$ 300',
+      'avatar': 'https://images.unsplash.com/photo-1612271974453-15e684c6586b?w=80&h=80&fit=crop&crop=face',
+      'portfolio': 'https://images.unsplash.com/photo-1645318588650-f0fb322cd740?w=160&h=100&fit=crop',
+    },
+    {
+      'id': 2,
+      'name': 'Rafael Costa',
+      'location': 'Curitiba, PR',
+      'styles': ['Realismo', 'Old School'],
+      'rating': 4.7,
+      'reviews': 94,
+      'price': 'A partir de R\$ 450',
+      'avatar': 'https://images.unsplash.com/photo-1544604725-0ffa9861dec2?w=80&h=80&fit=crop&crop=face',
+      'portfolio': 'https://images.unsplash.com/photo-1645542335615-3acf176850bc?w=160&h=100&fit=crop',
+    },
+  ];
+
+  List<Map<String, dynamic>> _filteredArtists = [];
 
   void _toggleStyle(String s) {
     setState(() {
@@ -85,17 +59,26 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _handleSearch() {
+    // Bloqueia a busca se não houver filtros (RF03 Cenário Negativo)
     if (_selectedStyles.isEmpty && _selectedLocation.isEmpty) {
       setState(() {
         _showError = true;
         _searched = false;
       });
-    } else {
-      setState(() {
-        _showError = false;
-        _searched = true;
-      });
-    }
+      return;
+    } 
+
+    setState(() {
+      _showError = false;
+      _searched = true;
+      
+      // Lógica real de filtro
+      _filteredArtists = _allArtists.where((artist) {
+        final matchLocation = _selectedLocation.isEmpty || artist['location'] == _selectedLocation;
+        final matchStyle = _selectedStyles.isEmpty || _selectedStyles.any((style) => (artist['styles'] as List).contains(style));
+        return matchLocation && matchStyle;
+      }).toList();
+    });
   }
 
   @override
@@ -103,17 +86,6 @@ class _SearchScreenState extends State<SearchScreen> {
     return Scaffold(
       body: Column(
         children: [
-          ScenarioSwitcher(
-            rf: 'RF03',
-            active: _scenario.name,
-            scenarios: const [
-              ScenarioConfig(key: 'results', label: '✓ Com Resultados', color: ScenarioColor.green),
-              ScenarioConfig(key: 'noParams', label: '✗ Sem Filtros', color: ScenarioColor.red),
-            ],
-            onChange: (k) => _applyScenario(
-                SearchScenario.values.firstWhere((e) => e.name == k)),
-          ),
-
           // Header escuro
           Container(
             color: InkFlowColors.primary,
@@ -284,7 +256,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            '${_artists.length} tatuadores',
+                            '${_filteredArtists.length} tatuadores',
                             style: const TextStyle(
                                 color: InkFlowColors.accent,
                                 fontSize: 11,
@@ -294,7 +266,16 @@ class _SearchScreenState extends State<SearchScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ..._artists.map((a) => _artistCard(context, a)),
+                    
+                    if (_filteredArtists.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Center(
+                          child: Text('Nenhum profissional encontrado com esses critérios.', style: TextStyle(color: Colors.grey)),
+                        ),
+                      )
+                    else
+                      ..._filteredArtists.map((a) => _artistCard(context, a)),
                   ],
                 ],
               ),
@@ -310,7 +291,7 @@ class _SearchScreenState extends State<SearchScreen> {
         style: TextStyle(
             color: Colors.grey.shade500,
             fontSize: 12,
-            fontWeight: FontWeight.w500));
+            fontWeight: FontWeight.bold)); // CORRIGIDO AQUI DE TRUE PARA FontWeight.bold
   }
 
   Widget _artistCard(BuildContext context, Map<String, dynamic> a) {

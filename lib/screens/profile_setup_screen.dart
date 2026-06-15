@@ -1,13 +1,21 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
-enum ProfileScenario { complete, incomplete }
-
 const _allStyles = [
-  'Black Work', 'Realismo', 'Geométrico', 'Aquarela',
-  'Old School', 'New School', 'Minimalista', 'Tribal', 'Japonês', 'Neo-Tradicional',
+  'Black Work',
+  'Realismo',
+  'Geométrico',
+  'Aquarela',
+  'Old School',
+  'New School',
+  'Minimalista',
+  'Tribal',
+  'Japonês',
+  'Neo-Tradicional',
 ];
 
 const _prices = [
@@ -18,13 +26,6 @@ const _prices = [
   {'size': 'Extra Grande (25cm+)', 'price': 'R\$ 2.500'},
 ];
 
-const _portfolioUrls = [
-  'https://images.unsplash.com/photo-1645318588650-f0fb322cd740?w=200&h=200&fit=crop',
-  'https://images.unsplash.com/photo-1645542335615-3acf176850bc?w=200&h=200&fit=crop',
-  'https://images.unsplash.com/photo-1656173877582-c7c017bff89e?w=200&h=200&fit=crop',
-  'https://images.unsplash.com/photo-1576134902784-d41806b7614f?w=200&h=200&fit=crop',
-];
-
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
 
@@ -33,23 +34,12 @@ class ProfileSetupScreen extends StatefulWidget {
 }
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
-  ProfileScenario _scenario = ProfileScenario.complete;
-  List<String> _selectedStyles = ['Black Work', 'Geométrico'];
-  List<String> _uploadedPhotos = _portfolioUrls.sublist(0, 3);
+  final List<String> _selectedStyles = [];
+  final List<XFile> _uploadedPhotos = []; // Dados reais do image_picker
+  final ImagePicker _picker = ImagePicker();
+
   bool _submitted = false;
   bool _isLoading = false;
-
-  void _applyScenario(ProfileScenario s) {
-    setState(() {
-      _scenario = s;
-      _submitted = false;
-      if (s == ProfileScenario.incomplete) {
-        _uploadedPhotos = [];
-      } else {
-        _uploadedPhotos = _portfolioUrls.sublist(0, 3);
-      }
-    });
-  }
 
   bool get _canActivate =>
       _uploadedPhotos.length >= 3 && _selectedStyles.isNotEmpty;
@@ -64,25 +54,52 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     });
   }
 
-  void _simulateUpload() {
-    if (_uploadedPhotos.length < _portfolioUrls.length) {
-      setState(() {
-        _uploadedPhotos.add(_portfolioUrls[_uploadedPhotos.length]);
-      });
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80, // Compressão básica para otimizar upload
+      );
+
+      if (image != null) {
+        setState(() {
+          _uploadedPhotos.add(image);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao abrir a galeria. Verifique as permissões.'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
     }
   }
 
   Future<void> _handleActivate() async {
     if (!_canActivate) return;
+
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        _submitted = true;
-      });
-      await Future.delayed(const Duration(milliseconds: 1500));
-      if (mounted) context.go('/home');
+
+    try {
+      // TODO: Implementar lógica de Storage real no Backend
+      // 1. Fazer upload de _uploadedPhotos para o bucket do Supabase
+      // 2. Salvar as URLs públicas e _selectedStyles na tabela do perfil
+
+      await Future.delayed(const Duration(milliseconds: 2000)); // Simula o upload
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _submitted = true;
+        });
+        await Future.delayed(const Duration(milliseconds: 1500));
+        if (mounted) context.go('/home');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -93,19 +110,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            ScenarioSwitcher(
-              rf: 'RF02',
-              active: _scenario.name,
-              scenarios: const [
-                ScenarioConfig(key: 'complete', label: '✓ Completo', color: ScenarioColor.green),
-                ScenarioConfig(key: 'incomplete', label: '✗ Portfólio Incompleto', color: ScenarioColor.red),
-              ],
-              onChange: (k) => _applyScenario(
-                  ProfileScenario.values.firstWhere((e) => e.name == k)),
-            ),
-
-            AppHeader(title: 'Configurar Perfil', showBack: true, backTo: '/home', dark: true),
-
+            AppHeader(
+                title: 'Configurar Perfil',
+                showBack: true,
+                backTo: '/home',
+                dark: true),
             if (_submitted)
               Expanded(child: _buildSuccess())
             else
@@ -154,14 +163,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         }).toList(),
                       ),
                       const SizedBox(height: 24),
-
                       _sectionTitle('Tabela de Preços Base'),
                       const SizedBox(height: 8),
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withOpacity(0.1)),
+                          border:
+                              Border.all(color: Colors.white.withOpacity(0.1)),
                         ),
                         child: Column(
                           children: _prices.asMap().entries.map((entry) {
@@ -201,7 +210,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-
                       Row(
                         children: [
                           _sectionTitle('Portfólio'),
@@ -219,8 +227,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-
-                      if (!_canActivate && _scenario == ProfileScenario.incomplete)
+                      if (!_canActivate && _uploadedPhotos.isNotEmpty)
                         Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(10),
@@ -228,15 +235,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                             color: const Color(0xFFEF4444).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                                color: const Color(0xFFEF4444).withOpacity(0.3)),
+                                color:
+                                    const Color(0xFFEF4444).withOpacity(0.3)),
                           ),
                           child: const Text(
-                            'É necessário enviar pelo menos 3 imagens para ativar seu portfólio',
+                            'Ainda faltam imagens para atingir o mínimo exigido.',
                             style: TextStyle(
                                 color: Color(0xFFEF4444), fontSize: 11),
                           ),
                         ),
-
                       GridView.count(
                         crossAxisCount: 3,
                         crossAxisSpacing: 8,
@@ -244,16 +251,40 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         children: [
-                          ..._uploadedPhotos.map((url) => ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.network(url, fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                          color: Colors.grey.shade800,
-                                        )),
+                          // AQUI ESTÁ A CORREÇÃO: Forçamos a tipagem "XFile file" no map 
+                          // e adicionamos o operador "!" no ".path"
+                          ..._uploadedPhotos.map((XFile file) => Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.file(
+                                      File(file.path), 
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: GestureDetector(
+                                      onTap: () => setState(
+                                          () => _uploadedPhotos.remove(file)),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.black54,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.close,
+                                            color: Colors.white, size: 14),
+                                      ),
+                                    ),
+                                  )
+                                ],
                               )),
-                          // Botão de adicionar
+                          // Botão de adicionar real
                           GestureDetector(
-                            onTap: _simulateUpload,
+                            onTap: _pickImage,
                             child: Container(
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.05),
@@ -280,12 +311,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         ],
                       ),
                       const SizedBox(height: 32),
-
                       InkButton(
                         label: _canActivate
                             ? 'Ativar Perfil Profissional'
                             : 'Portfólio Incompleto',
-                        onPressed: _canActivate ? _handleActivate : null,
+                        onPressed: _canActivate && !_isLoading
+                            ? _handleActivate
+                            : null,
                         isLoading: _isLoading,
                       ),
                       const SizedBox(height: 20),
@@ -321,7 +353,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 color: InkFlowColors.accent.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check, color: InkFlowColors.accent, size: 40),
+              child: const Icon(Icons.check,
+                  color: InkFlowColors.accent, size: 40),
             ),
             const SizedBox(height: 20),
             const Text('Perfil Ativado!',
@@ -339,8 +372,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   const TextSpan(
                       text: 'Tatuador',
                       style: TextStyle(color: InkFlowColors.accent)),
-                  const TextSpan(
-                      text: ' e você já aparece nas buscas.'),
+                  const TextSpan(text: ' e você já aparece nas buscas.'),
                 ],
               ),
               textAlign: TextAlign.center,

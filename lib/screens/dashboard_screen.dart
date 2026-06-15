@@ -3,8 +3,6 @@ import 'package:fl_chart/fl_chart.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
 
-enum DashboardScenario { loaded, noData }
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -13,57 +11,73 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  DashboardScenario _scenario = DashboardScenario.loaded;
   String _period = 'month';
+  bool _isLoading = true;
 
-  final _monthlyData = [
-    {'month': 'Jan', 'revenue': 3200.0, 'sessions': 8},
-    {'month': 'Fev', 'revenue': 4100.0, 'sessions': 10},
-    {'month': 'Mar', 'revenue': 3800.0, 'sessions': 9},
-    {'month': 'Abr', 'revenue': 5200.0, 'sessions': 13},
-    {'month': 'Mai', 'revenue': 4800.0, 'sessions': 12},
-    {'month': 'Jun', 'revenue': 6100.0, 'sessions': 15},
-  ];
+  // Em um app real, estes dados viriam do backend via GET request
+  List<Map<String, dynamic>> _monthlyData = [];
+  List<Map<String, dynamic>> _styleData = [];
 
-  final _styleData = [
-    {'name': 'Black Work', 'percent': 35, 'color': Color(0xFF374151)},
-    {'name': 'Geométrico', 'percent': 28, 'color': InkFlowColors.accent},
-    {'name': 'Realismo', 'percent': 20, 'color': Color(0xFF8B5CF6)},
-    {'name': 'Outros', 'percent': 17, 'color': Color(0xFFF59E0B)},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchDashboardData();
+  }
+
+  // Simula a requisição ao banco de dados (Ex: Supabase)
+  Future<void> _fetchDashboardData() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      await Future.delayed(const Duration(milliseconds: 1200)); // Tempo de rede simulado
+      
+      if (mounted) {
+        setState(() {
+          _monthlyData = [
+            {'month': 'Jan', 'revenue': 3200.0, 'sessions': 8},
+            {'month': 'Fev', 'revenue': 4100.0, 'sessions': 10},
+            {'month': 'Mar', 'revenue': 3800.0, 'sessions': 9},
+            {'month': 'Abr', 'revenue': 5200.0, 'sessions': 13},
+            {'month': 'Mai', 'revenue': 4800.0, 'sessions': 12},
+            {'month': 'Jun', 'revenue': 6100.0, 'sessions': 15},
+          ];
+
+          _styleData = [
+            {'name': 'Black Work', 'percent': 35, 'color': const Color(0xFF374151)},
+            {'name': 'Geométrico', 'percent': 28, 'color': InkFlowColors.accent},
+            {'name': 'Realismo', 'percent': 20, 'color': const Color(0xFF8B5CF6)},
+            {'name': 'Outros', 'percent': 17, 'color': const Color(0xFFF59E0B)},
+          ];
+          
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        // Tratar erro (Ex: Mostrar SnackBar)
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Column(
         children: [
-          ScenarioSwitcher(
-            rf: 'RF10',
-            active: _scenario.name,
-            scenarios: const [
-              ScenarioConfig(
-                  key: 'loaded',
-                  label: '✓ Com Dados',
-                  color: ScenarioColor.green),
-              ScenarioConfig(
-                  key: 'noData',
-                  label: '✗ Sem Dados',
-                  color: ScenarioColor.red),
-            ],
-            onChange: (k) => setState(() => _scenario =
-                DashboardScenario.values.firstWhere((e) => e.name == k)),
-          ),
-
           AppHeader(
             title: 'Dashboard Financeiro',
             showBack: true,
             backTo: '/home',
           ),
-
           Expanded(
-            child: _scenario == DashboardScenario.noData
-                ? _buildEmpty()
-                : _buildDashboard(),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: InkFlowColors.accent),
+                  )
+                : _monthlyData.isEmpty
+                    ? _buildEmpty()
+                    : _buildDashboard(),
           ),
         ],
       ),
@@ -119,7 +133,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
-                  onTap: () => setState(() => _period = p),
+                  onTap: () {
+                    // Em um app real, alterar o período dispararia um novo _fetchDashboardData() 
+                    // passando o novo filtro para o banco.
+                    setState(() => _period = p);
+                  },
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
                     padding: const EdgeInsets.symmetric(
@@ -157,9 +175,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              _summaryCard('Ticket Médio',
+              _summaryCard(
+                  'Ticket Médio',
                   'R\$ ${(totalRevenue / totalSessions).toStringAsFixed(0)}',
-                  Icons.trending_up, const Color(0xFFF59E0B)),
+                  Icons.trending_up,
+                  const Color(0xFFF59E0B)),
               const SizedBox(width: 10),
               _summaryCard('Melhor Mês', 'Jun — R\$ 6.1K',
                   Icons.star, const Color(0xFF10B981)),
@@ -209,7 +229,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       showTitles: true,
                       getTitlesWidget: (val, meta) {
                         final i = val.toInt();
-                        if (i < _monthlyData.length) {
+                        if (i >= 0 && i < _monthlyData.length) {
                           return Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
