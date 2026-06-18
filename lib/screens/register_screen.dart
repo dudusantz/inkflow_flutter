@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
+import '../providers/auth_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Extensão isolada para cálculo de idade - Regra de negócio separada da UI
 extension AgeCalculator on DateTime {
   int get age {
     final today = DateTime.now();
@@ -15,78 +19,141 @@ extension AgeCalculator on DateTime {
   }
 }
 
-class RegisterScreen extends StatefulWidget {
+class CpfValidator {
+  static bool isValid(String cpf) {
+    cpf = cpf.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cpf.length != 11) return false;
+    if (RegExp(r'^(\d)\1*$').hasMatch(cpf)) return false;
+
+    List<int> numbers = cpf.split('').map(int.parse).toList();
+
+    int sum = 0;
+    for (int i = 0; i < 9; i++) sum += numbers[i] * (10 - i);
+    int check1 = 11 - (sum % 11);
+    if (check1 >= 10) check1 = 0;
+    if (check1 != numbers[9]) return false;
+
+    sum = 0;
+    for (int i = 0; i < 10; i++) sum += numbers[i] * (11 - i);
+    int check2 = 11 - (sum % 11);
+    if (check2 >= 10) check2 = 0;
+    if (check2 != numbers[10]) return false;
+
+    return true;
+  }
+}
+
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  
-  bool _submitted = false;
+
+  // Controller para monitorar a senha principal em tempo real
+  final _passwordController = TextEditingController();
+
+  final _cpfMaskFormatter = MaskTextInputFormatter(
+    mask: '###.###.###-##',
+    filter: {"#": RegExp(r'[0-9]')},
+    type: MaskAutoCompletionType.lazy,
+  );
+
   bool _isLoading = false;
   bool _terms = false;
-  bool _isDuplicateError = false; // Controle de erro vindo do backend
+  String? _errorMessage;
 
   String _name = '';
   String _email = '';
   String _cpf = '';
   String _password = '';
   String _guardianCpf = '';
-  
+
   DateTime? _selectedDob;
 
   bool get _isUnderage => _selectedDob != null && _selectedDob!.age < 18;
 
+  @override
+  void dispose() {
+    // É obrigatório descartar controllers em State para evitar memory leaks
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   void _handleSubmit() async {
+    setState(() => _errorMessage = null);
+
     if (!_terms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Você precisa aceitar os Termos de Uso.'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
-      );
+      setState(() => _errorMessage = 'Você precisa aceitar os Termos de Uso.');
       return;
     }
 
     if (_formKey.currentState!.validate()) {
       if (_selectedDob == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Selecione sua data de nascimento.'),
-            backgroundColor: Color(0xFFEF4444),
-          ),
-        );
+        setState(() => _errorMessage = 'Selecione sua data de nascimento.');
         return;
       }
 
       _formKey.currentState!.save();
-      setState(() {
-        _isLoading = true;
-        _isDuplicateError = false;
-      });
+      setState(() => _isLoading = true); // Inicia o loading
 
       try {
-        // TODO: Substituir por chamada real ao backend (Supabase/Firebase)
-        // await authService.signUp(...)
-        await Future.delayed(const Duration(milliseconds: 1500)); // Simula rede
+        final String cleanDate =
+            '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}';
+        final String cleanCpf = _cpf.replaceAll(RegExp(r'[^0-9]'), '');
+        final String cleanGuardianCpf =
+            _guardianCpf.replaceAll(RegExp(r'[^0-9]'), '');
+        final String cleanEmail =
+            _email.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '');
 
+        // Dispara a requisição para o banco
+        await ref.read(authRepositoryProvider).signUp(
+              email: cleanEmail,
+              password: _password,
+              name: _name,
+              cpf: cleanCpf,
+              dateOfBirth: cleanDate,
+              guardianCpf: _isUnderage ? cleanGuardianCpf : null,
+            );
+
+        // 👇 CORREÇÃO: O que fazer quando dá certo
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _submitted = true;
-          });
-          await Future.delayed(const Duration(milliseconds: 1500));
-          if (mounted) context.go('/home');
+          setState(() => _isLoading = false); // Para o loading imediatamente
+
+          // O Supabase tem sessão ativa? (Ou seja, login automático ocorreu?)
+          final session = Supabase.instance.client.auth.currentSession;
+
+          if (session == null) {
+            // Cenário 1: Conta criada, mas exige confirmação de e-mail
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content:
+                    Text('Conta criada! Verifique seu e-mail ou faça o login.'),
+                backgroundColor: Color(0xFF10B981), // Verde
+              ),
+            );
+            context.go('/'); // Manda o usuário para a tela de login inicial
+          } else {
+            // Cenário 2: Login automático ocorreu com sucesso
+            context.go('/home');
+          }
         }
       } catch (e) {
-        // Exemplo de como tratar o RNF de duplicidade vindo do banco
+        // 👇 Tratamento de Erros
         if (mounted) {
           setState(() {
-            _isLoading = false;
-            _isDuplicateError = true;
+            _isLoading = false; // Para o loading se der erro
+            if (e.toString().contains('already registered') ||
+                e.toString().contains('duplicate key') ||
+                e.toString().contains('User already registered')) {
+              _errorMessage = 'Este E-mail ou CPF já encontra-se registrado.';
+            } else {
+              _errorMessage =
+                  'Erro ao criar conta. Verifique os dados e tente novamente.';
+            }
           });
         }
       }
@@ -100,40 +167,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            AppHeader(title: 'Criar Conta', showBack: true, backTo: '/', dark: true),
-            if (_submitted)
-              Expanded(child: _buildSuccess())
-            else
-              Expanded(child: _buildForm()),
+            AppHeader(
+                title: 'Criar Conta', showBack: true, backTo: '/', dark: true),
+            Expanded(child: _buildForm()),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSuccess() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: InkFlowColors.accent.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check, color: InkFlowColors.accent, size: 40),
-          ),
-          const SizedBox(height: 16),
-          const Text('Conta criada!',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Text(
-            'Redirecionando para a tela inicial...',
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
-          ),
-        ],
       ),
     );
   }
@@ -146,43 +184,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_isDuplicateError)
+            if (_errorMessage != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF59E0B).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.3)),
+                  border: Border.all(
+                      color: const Color(0xFFF59E0B).withOpacity(0.3)),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    const Text(
-                      '⚠ E-mail ou CPF já cadastrado',
-                      style: TextStyle(
-                          color: Color(0xFFF59E0B),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Este e-mail já está em uso. Acesse a tela de Recuperação de Senha.',
-                      style: TextStyle(
-                          color: const Color(0xFFF59E0B).withOpacity(0.7),
-                          fontSize: 12),
+                    const Icon(Icons.warning_amber,
+                        color: Color(0xFFF59E0B), size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(_errorMessage!,
+                          style: const TextStyle(
+                              color: Color(0xFFF59E0B), fontSize: 12)),
                     ),
                   ],
                 ),
               ),
-
             _buildValidatedField(
               label: 'Nome completo *',
-              validator: (v) => v == null || v.isEmpty ? 'Campo obrigatório' : null,
+              validator: (v) =>
+                  v == null || v.isEmpty ? 'Campo obrigatório' : null,
               onSaved: (v) => _name = v!,
             ),
             const SizedBox(height: 16),
-
             _buildValidatedField(
               label: 'E-mail *',
               keyboardType: TextInputType.emailAddress,
@@ -194,28 +225,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onSaved: (v) => _email = v!,
             ),
             const SizedBox(height: 16),
-
             _buildValidatedField(
               label: 'CPF *',
               keyboardType: TextInputType.number,
-              validator: (v) => v == null || v.length < 11 ? 'CPF inválido' : null,
+              inputFormatters: [_cpfMaskFormatter],
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Campo obrigatório';
+                if (!CpfValidator.isValid(v)) return 'CPF inválido';
+                return null;
+              },
               onSaved: (v) => _cpf = v!,
             ),
             const SizedBox(height: 16),
-
             _dobField(),
             const SizedBox(height: 16),
-
             if (_isUnderage) _guardianField(),
-
             _buildValidatedField(
               label: 'Senha *',
+              controller: _passwordController,
               obscureText: true,
-              validator: (v) => v == null || v.length < 6 ? 'A senha deve ter no mínimo 6 caracteres' : null,
+              validator: (v) => v == null || v.length < 6
+                  ? 'A senha deve ter no mínimo 6 caracteres'
+                  : null,
               onSaved: (v) => _password = v!,
             ),
+            const SizedBox(height: 16),
+            _buildValidatedField(
+              label: 'Confirmar Senha *',
+              obscureText: true,
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Confirme sua senha';
+                if (v != _passwordController.text)
+                  return 'As senhas não coincidem';
+                return null;
+              },
+              onSaved: (v) {},
+            ),
             const SizedBox(height: 20),
-
             GestureDetector(
               onTap: () => setState(() => _terms = !_terms),
               child: Row(
@@ -237,33 +283,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     child: _terms
-                        ? const Icon(Icons.check, color: InkFlowColors.primary, size: 12)
+                        ? const Icon(Icons.check,
+                            color: InkFlowColors.primary, size: 12)
                         : null,
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
+                  const Expanded(
                     child: Text.rich(
                       TextSpan(
                         style: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
+                            color: Color(0x80FFFFFF),
                             fontSize: 12,
                             height: 1.5),
                         children: [
-                          const TextSpan(text: 'Aceito os '),
+                          TextSpan(text: 'Aceito os '),
                           TextSpan(
-                            text: 'Termos de Uso',
-                            style: const TextStyle(
-                                color: InkFlowColors.accent,
-                                decoration: TextDecoration.underline),
-                          ),
-                          const TextSpan(text: ' e a '),
+                              text: 'Termos de Uso',
+                              style: TextStyle(
+                                  color: InkFlowColors.accent,
+                                  decoration: TextDecoration.underline)),
+                          TextSpan(text: ' e a '),
                           TextSpan(
-                            text: 'Política de Privacidade',
-                            style: const TextStyle(
-                                color: InkFlowColors.accent,
-                                decoration: TextDecoration.underline),
-                          ),
-                          const TextSpan(text: ' da InkFlow'),
+                              text: 'Política de Privacidade',
+                              style: TextStyle(
+                                  color: InkFlowColors.accent,
+                                  decoration: TextDecoration.underline)),
+                          TextSpan(text: ' da InkFlow'),
                         ],
                       ),
                     ),
@@ -272,27 +317,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
             InkButton(
               label: 'Criar Conta',
               onPressed: _isLoading ? null : _handleSubmit,
               isLoading: _isLoading,
             ),
-            const SizedBox(height: 16),
-
+            const SizedBox(height: 20),
             Center(
               child: Text.rich(
                 TextSpan(
-                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+                  style:
+                      const TextStyle(color: Color(0x66FFFFFF), fontSize: 12),
                   children: [
                     const TextSpan(text: 'Já tem conta? '),
                     WidgetSpan(
                       child: GestureDetector(
                         onTap: () => context.go('/'),
-                        child: const Text(
-                          'Entrar',
-                          style: TextStyle(color: InkFlowColors.accent, fontSize: 12),
-                        ),
+                        child: const Text('Entrar',
+                            style: TextStyle(
+                                color: InkFlowColors.accent, fontSize: 12)),
                       ),
                     ),
                   ],
@@ -306,37 +349,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Substitui o InkTextField visual apenas para garantir que o TextFormField seja usado nativamente no Form
   Widget _buildValidatedField({
     required String label,
     required FormFieldValidator<String> validator,
     required FormFieldSetter<String> onSaved,
     bool obscureText = false,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    TextEditingController? controller,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontSize: 12,
-              fontWeight: FontWeight.w500),
-        ),
+        Text(label,
+            style: const TextStyle(
+                color: Color(0x99FFFFFF),
+                fontSize: 12,
+                fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         TextFormField(
+          controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withOpacity(0.1),
+            fillColor: const Color(0x1AFFFFFF),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             errorStyle: const TextStyle(color: Color(0xFFEF4444)),
           ),
           validator: validator,
@@ -347,47 +391,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _dobField() {
-    final dateStr = _selectedDob != null 
+    final dateStr = _selectedDob != null
         ? '${_selectedDob!.day.toString().padLeft(2, '0')}/${_selectedDob!.month.toString().padLeft(2, '0')}/${_selectedDob!.year}'
         : 'Selecionar data';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Data de nascimento *',
-          style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontSize: 12,
-              fontWeight: FontWeight.w500),
-        ),
+        const Text('Data de nascimento *',
+            style: TextStyle(
+                color: Color(0x99FFFFFF),
+                fontSize: 12,
+                fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: _pickDate,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _isUnderage
-                    ? const Color(0xFFEF4444).withOpacity(0.6)
-                    : Colors.transparent,
-              ),
-            ),
+                color: const Color(0x1AFFFFFF),
+                borderRadius: BorderRadius.circular(12)),
             child: Row(
               children: [
-                Text(
-                  dateStr,
-                  style: TextStyle(
-                    color: _selectedDob == null
-                        ? Colors.white.withOpacity(0.3)
-                        : Colors.white,
-                    fontSize: 14,
-                  ),
-                ),
+                Text(dateStr,
+                    style: TextStyle(
+                        color: _selectedDob == null
+                            ? const Color(0x4DFFFFFF)
+                            : Colors.white,
+                        fontSize: 14)),
                 const Spacer(),
-                Icon(Icons.calendar_today, color: Colors.white.withOpacity(0.4), size: 16),
+                const Icon(Icons.calendar_today,
+                    color: Color(0x66FFFFFF), size: 16),
               ],
             ),
           ),
@@ -425,21 +459,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(height: 8),
           TextFormField(
             keyboardType: TextInputType.number,
+            inputFormatters: [_cpfMaskFormatter],
             style: const TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               hintText: '000.000.000-00',
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+              hintStyle: const TextStyle(color: Color(0x4DFFFFFF)),
               filled: true,
-              fillColor: Colors.white.withOpacity(0.1),
+              fillColor: const Color(0x1AFFFFFF),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               errorStyle: const TextStyle(color: Color(0xFFEF4444)),
             ),
             validator: (v) {
-              if (_isUnderage && (v == null || v.isEmpty)) return 'Obrigatório para menores';
+              if (_isUnderage && (v == null || v.isEmpty))
+                return 'Obrigatório para menores';
+              if (_isUnderage && !CpfValidator.isValid(v!))
+                return 'CPF do responsável inválido';
               return null;
             },
             onSaved: (v) => _guardianCpf = v ?? '',
@@ -455,20 +493,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       initialDate: DateTime(2000, 1, 1),
       firstDate: DateTime(1940),
       lastDate: DateTime.now(),
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
-            primary: InkFlowColors.accent,
-            onPrimary: InkFlowColors.primary,
-          ),
+              primary: InkFlowColors.accent, onPrimary: InkFlowColors.primary),
         ),
         child: child!,
       ),
     );
     if (picked != null) {
-      setState(() {
-        _selectedDob = picked;
-      });
+      setState(() => _selectedDob = picked);
     }
   }
 }

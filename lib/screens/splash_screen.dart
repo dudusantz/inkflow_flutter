@@ -1,35 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared_widgets.dart';
+import '../providers/auth_provider.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   String _email = '';
   String _password = '';
   bool _isLoading = false;
 
   void _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
+    // ==========================================
+    // 🚧 MODO BYPASS ATIVADO (PARA TIRAR PRINTS)
+    // ==========================================
 
+    // 1. Validação desligada: Assim você não precisa nem digitar e-mail e senha
+    // if (!_formKey.currentState!.validate()) return;
+    // _formKey.currentState!.save();
+
+    /* 2. CÓDIGO ORIGINAL COMENTADO (Sem Supabase)
     setState(() => _isLoading = true);
-    
     try {
-      // TODO: Substituir pela chamada real de autenticação (ex: Supabase Auth)
-      await Future.delayed(const Duration(milliseconds: 1500)); 
-      
-      if (mounted) {
-        context.go('/home');
-      }
+      await ref.read(authRepositoryProvider).signIn(_email, _password);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -39,9 +41,12 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() => _isLoading = false);
     }
+    */
+
+    // 3. Navegação forçada e direta para o MENU PRINCIPAL
+    context.go('/home');
   }
 
   @override
@@ -72,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen> {
                         'A plataforma para tatuadores e clientes',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Color(0xCCFFFFFF), // 80% white
+                          color: Color(0xCCFFFFFF),
                           fontSize: 13,
                         ),
                       ),
@@ -85,7 +90,8 @@ class _SplashScreenState extends State<SplashScreen> {
                         hint: 'exemplo@email.com',
                         keyboardType: TextInputType.emailAddress,
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Informe seu e-mail';
+                          if (v == null || v.isEmpty)
+                            return 'Informe seu e-mail';
                           if (!v.contains('@')) return 'E-mail inválido';
                           return null;
                         },
@@ -99,7 +105,8 @@ class _SplashScreenState extends State<SplashScreen> {
                       _darkInput(
                         hint: '••••••••',
                         obscure: true,
-                        validator: (v) => v == null || v.isEmpty ? 'Informe sua senha' : null,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Informe sua senha' : null,
                         onSaved: (v) => _password = v!,
                       ),
                       const SizedBox(height: 4),
@@ -112,7 +119,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           child: const Text(
                             'Esqueceu a senha?',
                             style: TextStyle(
-                              color: Color(0x66FFFFFF), // 40% white
+                              color: Color(0x66FFFFFF),
                               fontSize: 12,
                             ),
                           ),
@@ -133,8 +140,6 @@ class _SplashScreenState extends State<SplashScreen> {
                   Column(
                     children: [
                       const SizedBox(height: 32),
-                      
-                      // Row transformada em CONST graças ao uso do HEX Code ao invés de withOpacity
                       const Row(
                         children: [
                           Expanded(child: Divider(color: Color(0x1AFFFFFF))),
@@ -143,7 +148,7 @@ class _SplashScreenState extends State<SplashScreen> {
                             child: Text(
                               'ou',
                               style: TextStyle(
-                                color: Color(0x4DFFFFFF), // 30% white
+                                color: Color(0x4DFFFFFF),
                                 fontSize: 12,
                               ),
                             ),
@@ -162,7 +167,7 @@ class _SplashScreenState extends State<SplashScreen> {
                         'Ao continuar, você concorda com os Termos de Uso e Política de Privacidade da InkFlow',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Color(0x33FFFFFF), // 20% white
+                          color: Color(0x33FFFFFF),
                           fontSize: 10,
                         ),
                       ),
@@ -184,7 +189,7 @@ class _SplashScreenState extends State<SplashScreen> {
       child: Text(
         text,
         style: const TextStyle(
-          color: Color(0x99FFFFFF), // 60% white
+          color: Color(0x99FFFFFF),
           fontSize: 12,
           fontWeight: FontWeight.w500,
         ),
@@ -207,9 +212,9 @@ class _SplashScreenState extends State<SplashScreen> {
       style: const TextStyle(color: Colors.white, fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0x33FFFFFF)), // 20% white
+        hintStyle: const TextStyle(color: Color(0x33FFFFFF)),
         filled: true,
-        fillColor: const Color(0x1AFFFFFF), // 10% white
+        fillColor: const Color(0x1AFFFFFF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
@@ -220,10 +225,12 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: InkFlowColors.accent.withOpacity(0.6), width: 1.5),
+          borderSide: BorderSide(
+              color: InkFlowColors.accent.withOpacity(0.6), width: 1.5),
         ),
         errorStyle: const TextStyle(color: Color(0xFFEF4444)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }
