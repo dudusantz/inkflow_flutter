@@ -58,19 +58,25 @@ assets/
 
 ---
 
-## 🎨 Telas e Requisitos Funcionais
+## 📋 Requisitos Funcionais
+
+Documentação completa (cenários BDD RF01–RF10): **[Docs/requisitos-funcionais.md](Docs/requisitos-funcionais.md)**
+
+## 🎨 Telas e Requisitos Funcionais (resumo)
 
 | Tela | RF | Cenários |
 |---|---|---|
 | Login | — | — |
-| Cadastro | RF01 | ✓ Positivo · ✗ Menor de Idade · ⚠ Duplicado |
-| Perfil Tatuador | RF02 | ✓ Completo · ✗ Portfólio incompleto |
+| Cadastro | RF01 | ✓ Positivo · ✗ Menor de Idade · ⚠ E-mail/CPF duplicado |
+| Perfil Tatuador | RF02 | ✓ Ativação · ✗ Portfólio incompleto |
 | Busca | RF03 | ✓ Com resultados · ✗ Sem filtros |
-| Chat | RF04/05 | ✓ Proposta válida · ✗ Data passada · ⚠ Aceite (cliente) |
-| Agenda | RF06/08 | ✓ Com sessões · ✗ Conflito · ⚠ Dia livre |
+| Chat | RF04 | ✓ Proposta válida · ✗ Data passada |
+| Aceite Proposta | RF05 | ✓ Aceite · ✗ Race condition |
+| Agenda Manual | RF06 | ✓ Horário livre · ✗ Conflito |
 | Anamnese | RF07 | ✓ OK · ✗ Sem aceite · ⚠ Condição de risco |
-| Lembretes | RF09 | ✓ Enviados · ✗ Sem consentimento LGPD |
-| Dashboard | RF10 | ✓ Com dados · ✗ Sem dados |
+| Agenda Diária | RF08 | ✓ Sessões · ✗ Erro rede · ⚠ Dia livre |
+| Lembretes | RF09 | ✓ Enviados · ✗ Sem contato · ⚠ Cancelamento manual |
+| Dashboard | RF10 | ✓ Com dados · ✗ Período inválido |
 
 ---
 

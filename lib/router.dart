@@ -2,67 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'providers/auth_provider.dart';
-import 'screens/splash_screen.dart';
-import 'screens/register_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/search_screen.dart';
-import 'screens/chat_screen.dart';
-import 'screens/schedule_screen.dart';
-import 'screens/anamnesis_screen.dart';
-import 'screens/reminders_screen.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/profile_setup_screen.dart';
+import 'package:inkflow/features/auth/providers/auth_provider.dart';
+import 'package:inkflow/features/auth/presentation/splash_screen.dart';
+import 'package:inkflow/features/auth/presentation/register_screen.dart';
+import 'package:inkflow/features/home/presentation/home_screen.dart';
+import 'package:inkflow/features/search/presentation/search_screen.dart';
+import 'package:inkflow/features/chat/presentation/chat_screen.dart';
+import 'package:inkflow/features/chat/presentation/inbox_screen.dart';
+import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
+import 'package:inkflow/features/schedule/presentation/anamnesis_screen.dart';
+import 'package:inkflow/features/schedule/presentation/reminders_screen.dart';
+import 'package:inkflow/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:inkflow/features/profile/presentation/profile_setup_screen.dart';
+import 'package:inkflow/features/profile/presentation/profile_screen.dart';
+import 'package:inkflow/features/schedule/presentation/care_screen.dart';
+import 'package:inkflow/features/schedule/presentation/favorites_screen.dart';
+import 'package:inkflow/features/home/presentation/artist_home_screen.dart';
 
-// O Router agora é um Provider reativo.
-// Sempre que o estado de Autenticação mudar, ele reavalia as rotas automaticamente.
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
 
   return GoRouter(
-    initialLocation: '/',
-
-    // O guarda de rotas (Auth Guard) intercepta todas as mudanças de tela
+    initialLocation:
+        '/', // <-- CORREÇÃO: O ponto de partida é sempre o Login/Splash
     redirect: (context, state) {
-      // 1. Enquanto o Supabase verifica o token no arranque, aguardamos
       if (authState.isLoading) return null;
 
-      // 2. Verificamos se existe uma sessão ativa válida
       final isAuthenticated = authState.value?.session != null;
-
       final isGoingToLogin = state.matchedLocation == '/';
       final isGoingToRegister = state.matchedLocation == '/register';
 
-      // 3. Se NÃO está logado e tenta acessar rotas internas -> Manda de volta para o Login
+      // Se NÃO está autenticado e tenta aceder a ecrãs privados, volta ao login
       if (!isAuthenticated && !isGoingToLogin && !isGoingToRegister) {
         return '/';
       }
 
-      // 4. Se ESTÁ logado e tenta acessar Login ou Registro -> Manda direto para a Home
+      // Se ESTÁ autenticado e tenta ir para o login, é empurrado para o Hub (Home)
       if (isAuthenticated && (isGoingToLogin || isGoingToRegister)) {
         return '/home';
       }
 
       return null;
     },
-
     routes: [
+      GoRoute(path: '/', builder: (context, state) => const SplashScreen()),
       GoRoute(
-        path: '/',
-        builder: (context, state) => const SplashScreen(),
-      ),
+          path: '/register',
+          builder: (context, state) => const RegisterScreen()),
+      GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(
-        path: '/register',
-        builder: (context, state) => const RegisterScreen(),
-      ),
-      GoRoute(
-        path: '/home',
-        builder: (context, state) => const HomeScreen(),
-      ),
-      GoRoute(
-        path: '/search',
-        builder: (context, state) => const SearchScreen(),
-      ),
+          path: '/search', builder: (context, state) => const SearchScreen()),
+      GoRoute(path: '/inbox', builder: (context, state) => const InboxScreen()),
       GoRoute(
         path: '/chat',
         builder: (context, state) {
@@ -71,25 +61,29 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: '/schedule',
-        builder: (context, state) => const ScheduleScreen(),
-      ),
+          path: '/schedule',
+          builder: (context, state) => const ScheduleScreen()),
       GoRoute(
-        path: '/anamnesis',
-        builder: (context, state) => const AnamnesisScreen(),
-      ),
+          path: '/anamnesis',
+          builder: (context, state) => const AnamnesisScreen()),
       GoRoute(
-        path: '/reminders',
-        builder: (context, state) => const RemindersScreen(),
-      ),
+          path: '/reminders',
+          builder: (context, state) => const RemindersScreen()),
       GoRoute(
-        path: '/dashboard',
-        builder: (context, state) => const DashboardScreen(),
-      ),
+          path: '/dashboard',
+          builder: (context, state) => const DashboardScreen()),
       GoRoute(
-        path: '/profile-setup',
-        builder: (context, state) => const ProfileSetupScreen(),
-      ),
+          path: '/profile', builder: (context, state) => const ProfileScreen()),
+      GoRoute(
+          path: '/profile-setup',
+          builder: (context, state) => const ProfileSetupScreen()),
+      GoRoute(
+          path: '/artist-home',
+          builder: (context, state) => const ArtistHomeScreen()),
+      GoRoute(path: '/care', builder: (context, state) => const CareScreen()),
+      GoRoute(
+          path: '/favorites',
+          builder: (context, state) => const FavoritesScreen()),
     ],
   );
 });

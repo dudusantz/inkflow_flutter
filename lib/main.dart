@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // <-- ESTA É A LINHA QUE FALTAVA
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'theme/app_theme.dart';
-import 'router.dart'; // Onde está o nosso novo routerProvider
+import 'package:inkflow/core/theme/app_theme.dart';
+import 'router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,13 +27,11 @@ Future<void> main() async {
   );
 }
 
-// Transformado de StatelessWidget para ConsumerWidget
 class InkFlowApp extends ConsumerWidget {
   const InkFlowApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // AQUI ESTÁ A CORREÇÃO:
     // Nós consumimos o routerProvider do Riverpod e guardamos na variável local "router"
     final router = ref.watch(routerProvider);
 
@@ -41,7 +39,9 @@ class InkFlowApp extends ConsumerWidget {
       title: 'InkFlow',
       debugShowCheckedModeBanner: false,
       theme: InkFlowTheme.theme,
-      routerConfig: router, // Passamos a variável reativa "router" (e não mais o appRouter fixo)
+      routerConfig: router, // Passamos a variável reativa "router"
+
+      // 👇 Agora o Flutter sabe de onde vêm estes "Globals" graças ao import lá no topo
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
