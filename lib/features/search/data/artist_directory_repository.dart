@@ -24,7 +24,8 @@ class ArtistDirectoryRepository {
         .from('artist_directory')
         .select()
         .order('rating', ascending: false)
-        .limit(limit);
+        .limit(limit)
+        .timeout(const Duration(seconds: 10));
     return _map(rows);
   }
 

@@ -17,6 +17,10 @@ void main() {
         authRedirect(isAuthenticated: false, location: '/register'),
         isNull,
       );
+      expect(
+        authRedirect(isAuthenticated: false, location: '/callback'),
+        isNull,
+      );
     });
 
     test('tira usuário logado das telas de login e cadastro', () {
@@ -30,6 +34,13 @@ void main() {
     test('não interfere em rota protegida com sessão ativa', () {
       expect(
         authRedirect(isAuthenticated: true, location: '/schedule'),
+        isNull,
+      );
+    });
+
+    test('mantém o retorno da confirmação visível com sessão ativa', () {
+      expect(
+        authRedirect(isAuthenticated: true, location: '/callback'),
         isNull,
       );
     });

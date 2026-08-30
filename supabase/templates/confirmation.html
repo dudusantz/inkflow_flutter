@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirme seu cadastro no InkFlow</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f4f3f0;font-family:Arial,Helvetica,sans-serif;color:#1b1b22;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+      Confirme seu e-mail para concluir seu cadastro no InkFlow.
+    </div>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f3f0;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #e7e4df;border-radius:20px;overflow:hidden;">
+            <tr>
+              <td style="background:#111116;padding:28px 32px;text-align:center;">
+                <div style="font-size:28px;line-height:1;font-weight:800;letter-spacing:-1px;color:#ffffff;">
+                  Ink<span style="color:#62c8c0;">Flow</span><span style="color:#62c8c0;">.</span>
+                </div>
+                <div style="margin-top:9px;font-size:12px;line-height:18px;color:#b9bac2;">
+                  Arte, conexão e cuidado em um só lugar.
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:38px 34px 34px;">
+                <div style="font-size:12px;line-height:18px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#247c76;">
+                  Falta pouco
+                </div>
+                <h1 style="margin:10px 0 14px;font-size:27px;line-height:34px;letter-spacing:-0.6px;color:#1b1b22;">
+                  Confirme seu e-mail
+                </h1>
+                <p style="margin:0 0 12px;font-size:15px;line-height:24px;color:#5f606b;">
+                  Olá! Recebemos um cadastro no InkFlow usando o endereço
+                  <strong style="color:#1b1b22;">{{ .Email }}</strong>.
+                </p>
+                <p style="margin:0 0 26px;font-size:15px;line-height:24px;color:#5f606b;">
+                  Clique no botão abaixo para confirmar que este e-mail é seu e concluir a criação da conta.
+                </p>
+
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 28px;">
+                  <tr>
+                    <td align="center" bgcolor="#62c8c0" style="border-radius:12px;">
+                      <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:15px 28px;font-size:14px;line-height:20px;font-weight:700;color:#111116;text-decoration:none;border-radius:12px;">
+                        Confirmar meu e-mail
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <div style="padding:16px 18px;background:#f6f5f2;border-radius:12px;">
+                  <p style="margin:0;font-size:12px;line-height:19px;color:#6f707c;">
+                    Se o botão não funcionar, copie e cole este endereço no navegador:
+                  </p>
+                  <p style="margin:7px 0 0;font-size:11px;line-height:17px;word-break:break-all;">
+                    <a href="{{ .ConfirmationURL }}" style="color:#247c76;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                  </p>
+                </div>
+
+                <p style="margin:24px 0 0;font-size:12px;line-height:19px;color:#858691;">
+                  Se você não criou uma conta no InkFlow, pode ignorar este e-mail com segurança.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:22px 32px;background:#faf9f7;border-top:1px solid #e7e4df;text-align:center;">
+                <p style="margin:0;font-size:11px;line-height:18px;color:#92939d;">
+                  Este é um e-mail automático de segurança. Não responda a esta mensagem.
+                </p>
+                <p style="margin:6px 0 0;font-size:11px;line-height:18px;color:#92939d;">
+                  © InkFlow · Conectando histórias através da arte.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

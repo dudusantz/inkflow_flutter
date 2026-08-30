@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:inkflow/core/data/supabase_providers.dart';
+import 'package:inkflow/features/auth/presentation/auth_callback_screen.dart';
 import 'package:inkflow/features/auth/presentation/register_screen.dart';
 import 'package:inkflow/features/auth/presentation/splash_screen.dart';
 import 'package:inkflow/features/chat/presentation/chat_screen.dart';
@@ -26,7 +27,7 @@ import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
 import 'package:inkflow/features/search/presentation/search_screen.dart';
 
 /// Rotas acessiveis sem sessao ativa.
-const _publicRoutes = {'/', '/register'};
+const _publicRoutes = {'/', '/register', '/callback'};
 
 /// Destino do guard de autenticacao, ou `null` para seguir na rota pedida.
 ///
@@ -38,7 +39,7 @@ String? authRedirect({
 }) {
   final isPublic = _publicRoutes.contains(location);
   if (!isAuthenticated && !isPublic) return '/';
-  if (isAuthenticated && isPublic) return '/home';
+  if (isAuthenticated && isPublic && location != '/callback') return '/home';
   return null;
 }
 
@@ -87,6 +88,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/register',
           builder: (context, state) => const RegisterScreen()),
+      GoRoute(
+        path: '/callback',
+        builder: (context, state) => const AuthCallbackScreen(),
+      ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(
           path: '/search', builder: (context, state) => const SearchScreen()),

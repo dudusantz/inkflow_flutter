@@ -21,50 +21,17 @@ class InkFlowLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logo = Image.asset(
-      'assets/inkflow_logo.png',
-      height: height,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => _InkFlowLogoFallback(
+    return Semantics(
+      label: 'InkFlow',
+      image: true,
+      // A imagem original possui fundo opaco e uma margem interna grande, que
+      // virava um pequeno quadrado no cabeçalho. A marca vetorial se adapta a
+      // qualquer tamanho e fundo sem perder nitidez.
+      child: _InkFlowLogoFallback(
         height: height,
         color: color,
         showWordmark: showWordmark,
       ),
-    );
-
-    return Semantics(
-      label: 'InkFlow',
-      image: true,
-      // O PNG recebido tem fundo branco e não possui canal alpha. Em fundos
-      // escuros esta matriz transforma os pixels claros em transparência e os
-      // traços escuros em branco, sem exibir o quadrado do arquivo original.
-      child: color.computeLuminance() > .5
-          ? ColorFiltered(
-              colorFilter: const ColorFilter.matrix([
-                0,
-                0,
-                0,
-                0,
-                255,
-                0,
-                0,
-                0,
-                0,
-                255,
-                0,
-                0,
-                0,
-                0,
-                255,
-                -.333,
-                -.333,
-                -.333,
-                0,
-                255,
-              ]),
-              child: logo,
-            )
-          : logo,
     );
   }
 }
@@ -82,23 +49,33 @@ class _InkFlowLogoFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = height * 0.72;
-    final fontSize = height * 0.42;
+    final iconSize = height * 0.68;
+    final fontSize = height * 0.58;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(Icons.water_drop_rounded, color: color, size: iconSize),
+        Container(
+          width: height,
+          height: height,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(height * 0.3),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
+          ),
+          alignment: Alignment.center,
+          child: Icon(Icons.gesture_rounded, color: color, size: iconSize),
+        ),
         if (showWordmark) ...[
-          SizedBox(width: height * 0.14),
+          SizedBox(width: height * 0.24),
           Text(
-            'InkFlow',
+            'InkFlow.',
             style: TextStyle(
               color: color,
               fontSize: fontSize,
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
+              letterSpacing: -0.7,
               height: 1,
             ),
           ),

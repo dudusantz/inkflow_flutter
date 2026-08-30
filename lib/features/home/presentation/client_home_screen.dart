@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import 'package:inkflow/core/errors/error_utils.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/schedule/data/appointment_repository.dart';
@@ -401,16 +400,56 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         );
       },
       loading: () => const Padding(
-          padding: EdgeInsets.symmetric(vertical: 32),
-          child: Center(
-              child: CircularProgressIndicator(color: InkFlowColors.accent))),
-      error: (error, stack) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: AsyncErrorView(
-            error: error,
-            customMessage: 'Erro ao carregar estúdios.',
-            onRetry: () => ref.invalidate(trendingArtistsProvider),
-          )),
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: InkFlowColors.accent,
+              ),
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Buscando estúdios…',
+              style: TextStyle(color: InkFlowColors.textMuted, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+      error: (error, stack) => _buildArtistsError(),
+    );
+  }
+
+  Widget _buildArtistsError() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: InkFlowColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_outlined,
+              color: InkFlowColors.textMuted, size: 24),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Não foi possível carregar os estúdios agora.',
+              style: TextStyle(color: InkFlowColors.textMuted, fontSize: 13),
+            ),
+          ),
+          TextButton(
+            onPressed: () => ref.invalidate(trendingArtistsProvider),
+            child: const Text('Tentar novamente'),
+          ),
+        ],
+      ),
     );
   }
 

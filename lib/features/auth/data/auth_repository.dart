@@ -1,5 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+/// Deep link registrado no Android, iOS e na lista de URLs permitidas do
+/// Supabase. Centralizá-lo evita divergências entre cadastro e recuperação.
+const authCallbackUrl = 'inkflow://auth/callback';
+
 enum DuplicateRegistrationField { email, cpf }
 
 class DuplicateRegistrationException implements Exception {
@@ -115,6 +119,7 @@ class AuthRepository {
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
+        emailRedirectTo: authCallbackUrl,
         data: {
           'name': name,
           'cpf': cpf,
@@ -179,6 +184,7 @@ class AuthRepository {
   Future<void> resetPassword(String email) async {
     await _supabase.auth.resetPasswordForEmail(
       email.trim().toLowerCase(),
+      redirectTo: authCallbackUrl,
     );
   }
 
