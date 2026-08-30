@@ -1,19 +1,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:inkflow/core/data/supabase_providers.dart';
 import 'package:inkflow/features/auth/data/auth_repository.dart';
 
-// 1. Fornece a instância do Repositório
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return AuthRepository(Supabase.instance.client);
+  return AuthRepository(ref.watch(supabaseClientProvider));
 });
 
-// 2. A CORREÇÃO MESTRA: Ouvir diretamente a Stream nativa do Supabase.
-// Isso garante 100% que o seu GoRouter vai ser notificado no momento do Login!
-final authStateProvider = StreamProvider<AuthState>((ref) {
-  return Supabase.instance.client.auth.onAuthStateChange;
-});
+/// Stream nativa do Supabase — a fonte de verdade da sessao.
+final authStateProvider = authStateChangesProvider;
 
-// 3. Atalho rápido e seguro para o utilizador atual
+/// Usuario autenticado atual.
+///
+/// Depende de [currentUserIdProvider], que observa `onAuthStateChange`. A
+/// versao anterior era um `Provider` simples que lia `auth.currentUser` uma
+/// unica vez e mantinha o valor em cache para sempre, devolvendo o usuario
+/// antigo depois de um logout.
 final currentUserProvider = Provider<User?>((ref) {
-  return Supabase.instance.client.auth.currentUser;
+  ref.watch(currentUserIdProvider);
+  return ref.watch(supabaseClientProvider).auth.currentUser;
+});
+
+/// `true` quando existe sessao ativa.
+final isAuthenticatedProvider = Provider<bool>((ref) {
+  return ref.watch(currentUserIdProvider) != null;
 });

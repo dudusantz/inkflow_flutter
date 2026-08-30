@@ -12,6 +12,11 @@ class AuthRateLimitException implements Exception {
   const AuthRateLimitException();
 }
 
+/// A senha atual informada na troca de senha nao confere.
+class InvalidCurrentPasswordException implements Exception {
+  const InvalidCurrentPasswordException();
+}
+
 class AuthRepository {
   final SupabaseClient _supabase;
 
@@ -31,17 +36,14 @@ class AuthRepository {
     );
   }
 
-  Future<bool> isCpfRegistered(String cpf) async {
-    final result = await _supabase
-        .from('profiles')
-        .select('id')
-        .eq('cpf', cpf)
-        .maybeSingle();
-    return result != null;
-  }
-
   static DuplicateRegistrationField? parseDuplicateField(Object error) {
     final message = error.toString().toLowerCase();
+
+    // Erro levantado pelo trigger `handle_new_user` (migration 002) quando o
+    // indice unico `profiles_cpf_key` e violado.
+    if (message.contains('cpf_already_registered')) {
+      return DuplicateRegistrationField.cpf;
+    }
 
     if (message.contains('duplicate') &&
         (message.contains('cpf') || message.contains('profiles_cpf'))) {
@@ -56,6 +58,13 @@ class AuthRepository {
     }
 
     if (message.contains('duplicate key') && message.contains('cpf')) {
+      return DuplicateRegistrationField.cpf;
+    }
+
+    // O GoTrue mascara excecoes do trigger como "Database error saving new
+    // user". No cadastro, a unica restricao que o trigger pode violar e o
+    // indice unico de CPF.
+    if (message.contains('database error saving new user')) {
       return DuplicateRegistrationField.cpf;
     }
 
@@ -84,7 +93,16 @@ class AuthRepository {
     return response.user != null && identities != null && identities.isEmpty;
   }
 
-  // Função de Registo (com os metadados do RF01)
+  /// Cadastro do RF01.
+  ///
+  /// `cpf`, `dateOfBirth` e `guardianCpf` viajam no metadata apenas ate o
+  /// trigger `handle_new_user` copia-los para `profiles` e apaga-los de la — o
+  /// metadata do Supabase e editavel pelo proprio usuario e nao serve para
+  /// guardar identidade.
+  ///
+  /// A duplicidade de CPF e detectada pelo indice unico no banco. A versao
+  /// anterior consultava `profiles` antes do login, o que permitia a qualquer
+  /// pessoa com a anon key testar se um CPF estava cadastrado.
   Future<AuthResponse> signUp({
     required String email,
     required String password,
@@ -93,12 +111,6 @@ class AuthRepository {
     required String dateOfBirth,
     String? guardianCpf,
   }) async {
-    if (await isCpfRegistered(cpf)) {
-      throw const DuplicateRegistrationException(
-        DuplicateRegistrationField.cpf,
-      );
-    }
-
     try {
       final response = await _supabase.auth.signUp(
         email: email,
@@ -124,11 +136,8 @@ class AuthRepository {
       if (isRateLimitError(e)) {
         throw const AuthRateLimitException();
       }
-      if (parseDuplicateField(e) == DuplicateRegistrationField.email) {
-        throw const DuplicateRegistrationException(
-          DuplicateRegistrationField.email,
-        );
-      }
+      final field = parseDuplicateField(e);
+      if (field != null) throw DuplicateRegistrationException(field);
       rethrow;
     } on PostgrestException catch (e) {
       if (parseDuplicateField(e) == DuplicateRegistrationField.cpf) {
@@ -138,6 +147,33 @@ class AuthRepository {
       }
       rethrow;
     }
+  }
+
+  /// Troca a senha exigindo a senha atual.
+  ///
+  /// A versao anterior chamava `updateUser(password:)` direto: qualquer pessoa
+  /// com o aparelho desbloqueado — ou com uma sessao sequestrada — trocava a
+  /// senha e assumia a conta. A reautenticacao fecha essa porta.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = currentUser?.email;
+    if (email == null) {
+      throw const AuthException('Sessão expirada. Entre novamente.');
+    }
+
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: email,
+        password: currentPassword,
+      );
+    } on AuthException catch (e) {
+      if (isRateLimitError(e)) throw const AuthRateLimitException();
+      throw const InvalidCurrentPasswordException();
+    }
+
+    await _supabase.auth.updateUser(UserAttributes(password: newPassword));
   }
 
   Future<void> resetPassword(String email) async {

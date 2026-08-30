@@ -1,106 +1,134 @@
 # InkFlow — Flutter App
 
-Protótipo completo convertido de React/Figma para **Flutter + Dart**, pronto para rodar no VSCode.
+Plataforma que conecta tatuadores e clientes: busca de profissionais, chat, agenda,
+anamnese e dashboard. Frontend em **Flutter + Dart**, backend em **Supabase**
+(Auth, Postgres com RLS, Realtime e Storage).
 
 ---
 
-## 🚀 Como Rodar
+## Como rodar
 
 ### Pré-requisitos
-- Flutter SDK `>=3.0.0` instalado ([flutter.dev](https://flutter.dev/docs/get-started/install))
+
+- Flutter SDK `>=3.0.0` ([flutter.dev](https://flutter.dev/docs/get-started/install))
 - Dart `>=3.0.0`
-- VSCode com extensão **Flutter** e **Dart**
+- Um projeto Supabase
 
 ### Passos
 
 ```bash
-# 1. Entre na pasta do projeto
-cd inkflow_flutter
-
-# 2. Instale as dependências
+# 1. Dependências
 flutter pub get
 
-# 3. Rode o app (emulador ou dispositivo físico)
+# 2. Credenciais
+cp .env.example .env      # e preencha SUPABASE_URL e SUPABASE_ANON_KEY
+
+# 3. Banco de dados — execute na ordem, no SQL Editor do Supabase:
+#    supabase/migrations/001_rf02_artist_profile.sql
+#    supabase/migrations/002_rls_policies.sql
+
+# 4. Rodar
 flutter run
 ```
 
-Para rodar no **Chrome** (web):
+> **A migration `002` não é opcional.** Ela cria as políticas de RLS, as views
+> `artist_directory` e `chat_directory` e a constraint que impede conflito de
+> horário. O código do app pressupõe que elas existam: sem isso o banco fica
+> aberto e a agenda perde a proteção contra agendamento duplo.
+
+Verificação local:
+
 ```bash
-flutter run -d chrome
+flutter analyze lib test
+flutter test
 ```
 
 ---
 
-## 📁 Estrutura de Pastas
+## Estrutura de pastas
+
+Organização por *feature*, cada uma com suas próprias camadas:
 
 ```
 lib/
-├── main.dart                  # Entrada do app
-├── router.dart                # Configuração de rotas (go_router)
-├── theme/
-│   └── app_theme.dart         # Cores e tema global InkFlow
-├── widgets/
-│   └── shared_widgets.dart    # Widgets reutilizáveis (ScenarioSwitcher, BottomNav, etc.)
-└── screens/
-    ├── splash_screen.dart      # Login (tela inicial)
-    ├── register_screen.dart    # RF01 — Cadastro de Conta
-    ├── home_screen.dart        # RF08 — Agenda do Dia / Home
-    ├── search_screen.dart      # RF03 — Buscar Tatuadores
-    ├── chat_screen.dart        # RF04/RF05 — Chat + Propostas
-    ├── schedule_screen.dart    # RF06/RF08 — Agenda completa
-    ├── anamnesis_screen.dart   # RF07 — Ficha de Anamnese
-    ├── reminders_screen.dart   # RF09 — Lembretes LGPD
-    ├── dashboard_screen.dart   # RF10 — Dashboard Financeiro
-    └── profile_setup_screen.dart # RF02 — Perfil do Tatuador
-assets/
-└── inkflow_logo.png
+├── main.dart                       # Bootstrap: .env, Supabase, locale pt_BR
+├── router.dart                     # go_router + guards de autenticação
+├── core/
+│   ├── data/supabase_providers.dart   # Cliente e sessão (injetáveis em teste)
+│   ├── errors/error_utils.dart        # Tradução de erros para o usuário
+│   ├── theme/app_theme.dart           # Cores e tema global
+│   ├── utils/                         # TimeSlot, PasswordPolicy
+│   └── widgets/shared_widgets.dart    # Componentes reutilizáveis
+└── features/
+    ├── auth/          # RF01 — login, cadastro, recuperação de senha
+    ├── chat/          # RF04/RF05 — inbox e conversa
+    ├── dashboard/     # RF10 — métricas e faturamento
+    ├── home/          # RF08 — home de cliente e de tatuador
+    ├── profile/       # RF02 — perfil, portfólio, notificações, privacidade
+    ├── schedule/      # RF06/RF07/RF09 — agenda, anamnese, lembretes
+    └── search/        # RF03 — busca de tatuadores
+
+supabase/migrations/    # Schema e políticas de acesso
+Docs/                   # Documentação do projeto
+test/                   # 63 testes
+tool/docs_pdf.js        # Gera o PDF da documentação
 ```
 
+Cada feature segue `domain/` (modelos tipados) → `data/` (repositórios que falam
+com o Supabase) → `providers/` → `presentation/` (telas). Nenhuma tela chama o
+cliente do Supabase diretamente; é isso que torna as regras testáveis.
+
 ---
 
-## 📋 Requisitos Funcionais
+## Requisitos funcionais
 
-Documentação completa (cenários BDD RF01–RF10): **[Docs/requisitos-funcionais.md](Docs/requisitos-funcionais.md)**
+Cenários BDD completos (RF01–RF10): **[Docs/requisitos-funcionais.md](Docs/requisitos-funcionais.md)**
 
-## 🎨 Telas e Requisitos Funcionais (resumo)
-
-| Tela | RF | Cenários |
+| RF | Tela | Situação |
 |---|---|---|
-| Login | — | — |
-| Cadastro | RF01 | ✓ Positivo · ✗ Menor de Idade · ⚠ E-mail/CPF duplicado |
-| Perfil Tatuador | RF02 | ✓ Ativação · ✗ Portfólio incompleto |
-| Busca | RF03 | ✓ Com resultados · ✗ Sem filtros |
-| Chat | RF04 | ✓ Proposta válida · ✗ Data passada |
-| Aceite Proposta | RF05 | ✓ Aceite · ✗ Race condition |
-| Agenda Manual | RF06 | ✓ Horário livre · ✗ Conflito |
-| Anamnese | RF07 | ✓ OK · ✗ Sem aceite · ⚠ Condição de risco |
-| Agenda Diária | RF08 | ✓ Sessões · ✗ Erro rede · ⚠ Dia livre |
-| Lembretes | RF09 | ✓ Enviados · ✗ Sem contato · ⚠ Cancelamento manual |
-| Dashboard | RF10 | ✓ Com dados · ✗ Período inválido |
+| RF01 — Cadastro | `auth/register_screen` | Implementado (CPF, menoridade com responsável, duplicidade) |
+| RF02 — Perfil profissional | `profile/profile_setup_screen` | Implementado (estilos, preços, portfólio no Storage) |
+| RF03 — Busca | `search/search_screen` | Implementado sobre a view `artist_directory` |
+| RF04/RF05 — Chat e propostas | `chat/chat_screen` | Chat em tempo real implementado; **propostas em desenvolvimento** |
+| RF06 — Agenda manual | `schedule/schedule_screen` | Implementado, com conflito de horário barrado no banco |
+| RF07 — Anamnese | `schedule/anamnesis_screen` | **Pré-visualização** — não persiste nada |
+| RF08 — Agenda do dia | `home/artist_home_screen` | Implementado |
+| RF09 — Lembretes | `schedule/reminders_screen` | Preferência gravada; **disparo automático em desenvolvimento** |
+| RF10 — Dashboard | `dashboard/dashboard_screen` | **Dados de demonstração** |
+
+As telas ainda não concluídas exibem um aviso `UnderDevelopmentBanner`, para não
+apresentarem dados de demonstração como se fossem informação de produção.
 
 ---
 
-## 🔧 Bugs Corrigidos vs. Protótipo Original
+## Estado técnico
 
-- **ScenarioSwitcher** desconectado das telas → integrado em todas as telas
-- **Navegação quebrada** entre telas → go_router com rotas tipadas
-- **Formulários sem validação** → validação real com feedback visual
-- **Datas passadas não bloqueadas** no chat → validação `isPastDate` implementada
-- **Botões sem estado** → todos os botões têm estados: loading, disabled, error
-- **Menor de idade** não bloqueava o cadastro → lógica de cálculo de idade real
-- **Portfólio** sem mínimo de fotos → validação de mínimo 3 fotos
-- **Aceite de Termos** obrigatório na Anamnese → bloqueio de envio sem aceite
-- **LGPD** nos lembretes não verificada → campo `consent` verificado antes de envio
+A análise completa do código — segurança e LGPD, bugs, arquitetura, testes e
+infraestrutura — está em **[Docs/analise-tecnica.md](Docs/analise-tecnica.md)**
+([PDF](Docs/analise-tecnica.pdf)), com o que já foi corrigido e o que continua em
+aberto.
+
+Pontos em aberto de maior impacto:
+
+1. O projeto **não está sob controle de versão** (não existe `.git`).
+2. Não há CI rodando `flutter analyze` e `flutter test`.
+3. Arquivos de protótipo ainda no repositório (`telas.rar`, `telas/`,
+   `package.json` com `puppeteer-core`, `.idea/`, `inkflow.iml`).
+4. Acessibilidade (`Semantics`, escala de texto, contraste) e internacionalização.
 
 ---
 
-## 📦 Dependências
+## Dependências
 
 | Pacote | Uso |
 |---|---|
-| `go_router` | Navegação declarativa entre telas |
-| `fl_chart` | Gráfico de barras no Dashboard |
-| `google_fonts` | Fonte Inter em todo o app |
-| `intl` | Formatação de datas em pt_BR |
-| `cached_network_image` | Cache de imagens da rede |
-| `flutter_localizations` | Localização pt_BR (DatePicker, etc.) |
+| `supabase_flutter` | Auth, Postgres, Realtime e Storage |
+| `flutter_riverpod` | Providers e injeção de dependências |
+| `go_router` | Navegação declarativa e guards de rota |
+| `flutter_dotenv` | Leitura de `SUPABASE_URL` e `SUPABASE_ANON_KEY` |
+| `cached_network_image` | Cache e fallback de imagens de rede |
+| `image_picker` | Seleção de fotos do portfólio |
+| `mask_text_input_formatter` | Máscaras de CPF, telefone e data |
+| `fl_chart` | Gráfico de barras do dashboard |
+| `google_fonts` | Fonte Inter |
+| `intl` + `flutter_localizations` | Formatação e componentes em pt-BR |

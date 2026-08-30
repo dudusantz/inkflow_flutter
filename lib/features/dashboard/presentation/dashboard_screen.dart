@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:inkflow/core/errors/error_utils.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
 
+/// Dashboard financeiro (RF10) — **em desenvolvimento**.
+///
+/// Os números abaixo são um exemplo fixo, não vêm da agenda: `appointments`
+/// ainda não registra pagamento, e sem isso não há receita real para somar. O
+/// seletor de período e o intervalo de datas também não afetam os dados.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -58,7 +64,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        // Tratar erro (Ex: Mostrar SnackBar)
+        showErrorSnackBar(
+          context,
+          userFriendlyErrorMessage(e),
+        );
       }
     }
   }
@@ -84,7 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _periodError =
             range.start.isAfter(range.end) ? 'O período selecionado é inválido.' : null;
       });
-      if (!_isPeriodInvalid) _fetchDashboardData();
+      if (!_isPeriodInvalid) await _fetchDashboardData();
     }
   }
 
@@ -93,10 +102,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       body: Column(
         children: [
-          AppHeader(
+          const AppHeader(
             title: 'Dashboard Financeiro',
             showBack: true,
             backTo: '/home',
+          ),
+          const UnderDevelopmentBanner(
+            message: 'Dados de demonstração. A apuração real depende do '
+                'registro de pagamentos, que ainda não existe.',
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -124,7 +137,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.1),
+                  color: InkFlowColors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFEF4444)),
                 ),
@@ -269,7 +282,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 2)),
               ],
@@ -331,7 +344,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         toY: _monthlyData[i]['revenue'] as double,
                         color: isLast
                             ? InkFlowColors.accent
-                            : InkFlowColors.primary.withOpacity(0.4),
+                            : InkFlowColors.primary.withValues(alpha: 0.4),
                         width: 18,
                         borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(6)),
@@ -354,7 +367,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 2)),
               ],
@@ -411,7 +424,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 2)),
               ],
@@ -448,7 +461,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 8,
                 offset: const Offset(0, 2)),
           ],
@@ -460,7 +473,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                  color: color.withOpacity(0.1), shape: BoxShape.circle),
+                  color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
               child: Icon(icon, color: color, size: 16),
             ),
             const SizedBox(height: 8),

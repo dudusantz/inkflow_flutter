@@ -1,5 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import 'package:inkflow/core/theme/app_theme.dart';
 
 // ─────────────────────────────────────────────
@@ -8,122 +10,140 @@ import 'package:inkflow/core/theme/app_theme.dart';
 class InkFlowLogo extends StatelessWidget {
   final double height;
   final Color color;
+  final bool showWordmark;
 
   const InkFlowLogo({
     super.key,
     this.height = 28,
     this.color = Colors.white,
+    this.showWordmark = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ColorFiltered(
-      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-      child: Image.asset(
-        'assets/inkflow_logo.png',
+    final logo = Image.asset(
+      'assets/inkflow_logo.png',
+      height: height,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => _InkFlowLogoFallback(
         height: height,
-        errorBuilder: (c, e, s) =>
-            Icon(Icons.water_drop, color: color, size: height),
+        color: color,
+        showWordmark: showWordmark,
       ),
+    );
+
+    return Semantics(
+      label: 'InkFlow',
+      image: true,
+      // O PNG recebido tem fundo branco e não possui canal alpha. Em fundos
+      // escuros esta matriz transforma os pixels claros em transparência e os
+      // traços escuros em branco, sem exibir o quadrado do arquivo original.
+      child: color.computeLuminance() > .5
+          ? ColorFiltered(
+              colorFilter: const ColorFilter.matrix([
+                0,
+                0,
+                0,
+                0,
+                255,
+                0,
+                0,
+                0,
+                0,
+                255,
+                0,
+                0,
+                0,
+                0,
+                255,
+                -.333,
+                -.333,
+                -.333,
+                0,
+                255,
+              ]),
+              child: logo,
+            )
+          : logo,
+    );
+  }
+}
+
+class _InkFlowLogoFallback extends StatelessWidget {
+  final double height;
+  final Color color;
+  final bool showWordmark;
+
+  const _InkFlowLogoFallback({
+    required this.height,
+    required this.color,
+    required this.showWordmark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = height * 0.72;
+    final fontSize = height * 0.42;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(Icons.water_drop_rounded, color: color, size: iconSize),
+        if (showWordmark) ...[
+          SizedBox(width: height * 0.14),
+          Text(
+            'InkFlow',
+            style: TextStyle(
+              color: color,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              height: 1,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
 
 // ─────────────────────────────────────────────
-// ScenarioSwitcher — barra de cenários de RF
+// UnderDevelopmentBanner — sinaliza tela com dados de demonstração
 // ─────────────────────────────────────────────
-class ScenarioConfig {
-  final String key;
-  final String label;
-  final ScenarioColor color;
-  const ScenarioConfig({required this.key, required this.label, required this.color});
-}
 
-enum ScenarioColor { green, red, yellow }
+/// Faixa que deixa explícito para o usuário que a tela ainda não persiste dados
+/// reais.
+///
+/// Sem isso, telas como Dashboard e Lembretes apresentavam números fixos como
+/// se fossem informação de produção.
+class UnderDevelopmentBanner extends StatelessWidget {
+  final String message;
 
-class ScenarioSwitcher extends StatelessWidget {
-  final String rf;
-  final String active;
-  final List<ScenarioConfig> scenarios;
-  final ValueChanged<String> onChange;
-
-  const ScenarioSwitcher({
-    super.key,
-    required this.rf,
-    required this.active,
-    required this.scenarios,
-    required this.onChange,
-  });
-
-  Color _bg(ScenarioColor c, bool isActive) {
-    if (isActive) {
-      return switch (c) {
-        ScenarioColor.green => const Color(0xFF10B981),
-        ScenarioColor.red => const Color(0xFFEF4444),
-        ScenarioColor.yellow => const Color(0xFFF59E0B),
-      };
-    }
-    return switch (c) {
-      ScenarioColor.green => const Color(0xFF10B981).withOpacity(0.2),
-      ScenarioColor.red => const Color(0xFFEF4444).withOpacity(0.2),
-      ScenarioColor.yellow => const Color(0xFFF59E0B).withOpacity(0.2),
-    };
-  }
-
-  Color _fg(ScenarioColor c, bool isActive) {
-    if (isActive) return Colors.white;
-    return switch (c) {
-      ScenarioColor.green => const Color(0xFF10B981),
-      ScenarioColor.red => const Color(0xFFEF4444),
-      ScenarioColor.yellow => const Color(0xFFF59E0B),
-    };
-  }
+  const UnderDevelopmentBanner({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: InkFlowColors.primary,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        color: InkFlowColors.warning.withValues(alpha: 0.12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            Text(
-              rf,
-              style: const TextStyle(
-                color: InkFlowColors.accent,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
+            const Icon(Icons.construction, color: Color(0xFF92400E), size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Color(0xFF92400E),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            ...scenarios.map((s) {
-              final isActive = s.key == active;
-              return Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: GestureDetector(
-                  onTap: () => onChange(s.key),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _bg(s.color, isActive),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _bg(s.color, !isActive)),
-                    ),
-                    child: Text(
-                      s.label,
-                      style: TextStyle(
-                        color: _fg(s.color, isActive),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
           ],
         ),
       ),
@@ -152,113 +172,68 @@ class AppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: dark ? InkFlowColors.primary : Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          if (showBack)
-            GestureDetector(
-              onTap: () {
-                if (backTo != null) {
-                  context.go(backTo!);
-                } else {
-                  context.pop();
-                }
-              },
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: dark ? Colors.white.withOpacity(0.1) : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  Icons.chevron_left,
-                  color: dark ? Colors.white : Colors.grey.shade700,
-                  size: 20,
-                ),
-              ),
-            )
-          else
-            InkFlowLogo(
-              height: 28,
-              color: dark ? Colors.white : InkFlowColors.primary,
-            ),
-          if (title != null) ...[
-            const SizedBox(width: 12),
-            Text(
-              title!,
-              style: TextStyle(
-                color: dark ? Colors.white : Colors.grey.shade900,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-          const Spacer(),
-          if (rightElement != null) rightElement!,
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// BottomNav — barra de navegação inferior
-// ─────────────────────────────────────────────
-class BottomNav extends StatelessWidget {
-  final int currentIndex;
-
-  const BottomNav({super.key, required this.currentIndex});
-
-  static const _items = [
-    _NavItem(icon: Icons.home_rounded, label: 'Início', path: '/home'),
-    _NavItem(icon: Icons.calendar_today_rounded, label: 'Agenda', path: '/schedule'),
-    _NavItem(icon: Icons.chat_bubble_rounded, label: 'Chat', path: '/chat'),
-    _NavItem(icon: Icons.person_rounded, label: 'Perfil', path: '/profile-setup'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: dark ? InkFlowColors.primary : InkFlowColors.background,
+        border: dark
+            ? null
+            : const Border(bottom: BorderSide(color: InkFlowColors.border)),
       ),
       child: SafeArea(
+        bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
           child: Row(
-            children: List.generate(_items.length, (i) {
-              final item = _items[i];
-              final isActive = i == currentIndex;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => context.go(item.path),
-                  behavior: HitTestBehavior.opaque,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        item.icon,
-                        color: isActive ? InkFlowColors.primary : Colors.grey.shade400,
-                        size: 22,
+            children: [
+              if (showBack)
+                Semantics(
+                  button: true,
+                  label: 'Voltar',
+                  child: IconButton(
+                    onPressed: () {
+                      if (backTo != null) {
+                        context.go(backTo!);
+                      } else if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/home');
+                      }
+                    },
+                    style: IconButton.styleFrom(
+                      backgroundColor: dark
+                          ? Colors.white.withValues(alpha: .1)
+                          : InkFlowColors.white,
+                      side: BorderSide(
+                        color: dark ? Colors.transparent : InkFlowColors.border,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        item.label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: isActive ? InkFlowColors.primary : Colors.grey.shade400,
-                        ),
-                      ),
-                    ],
+                    ),
+                    icon: Icon(Icons.arrow_back_rounded,
+                        color: dark ? Colors.white : InkFlowColors.text,
+                        size: 20),
+                  ),
+                )
+              else
+                InkFlowLogo(
+                  height: 28,
+                  color: dark ? Colors.white : InkFlowColors.primary,
+                ),
+              if (title != null) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title!,
+                    style: TextStyle(
+                      color: dark ? Colors.white : Colors.grey.shade900,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              );
-            }),
+              ] else
+                const Spacer(),
+              if (rightElement != null) rightElement!,
+            ],
           ),
         ),
       ),
@@ -266,57 +241,56 @@ class BottomNav extends StatelessWidget {
   }
 }
 
-class _NavItem {
-  final IconData icon;
-  final String label;
-  final String path;
-  const _NavItem({required this.icon, required this.label, required this.path});
-}
-
 // ─────────────────────────────────────────────
-// StatusBadge — badge reutilizável
+// AppBottomNav — barra principal do app
 // ─────────────────────────────────────────────
-class StatusBadge extends StatelessWidget {
-  final String text;
-  final Color bgColor;
-  final Color textColor;
+class AppBottomNav extends StatelessWidget {
+  final int currentIndex;
 
-  const StatusBadge({
-    super.key,
-    required this.text,
-    required this.bgColor,
-    required this.textColor,
-  });
+  const AppBottomNav({super.key, required this.currentIndex});
 
-  factory StatusBadge.anamnesis(bool ok, {bool risk = false}) {
-    if (risk) {
-      return const StatusBadge(
-        text: 'Condição de Risco',
-        bgColor: Color(0xFFFEE2E2),
-        textColor: Color(0xFFDC2626),
-      );
-    }
-    return StatusBadge(
-      text: ok ? 'Anamnese OK' : 'Pendente',
-      bgColor: ok ? const Color(0xFFDBEAFE) : const Color(0xFFFEF3C7),
-      textColor: ok ? const Color(0xFF2563EB) : const Color(0xFFD97706),
-    );
-  }
+  static const _paths = ['/home', '/schedule', '/inbox', '/profile'];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
+    final index = currentIndex.clamp(0, _paths.length - 1);
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: InkFlowColors.white,
+        border: Border(top: BorderSide(color: InkFlowColors.border)),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
+      child: SafeArea(
+        top: false,
+        child: NavigationBar(
+          selectedIndex: index,
+          height: 68,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (i) {
+            if (i != index) context.go(_paths[i]);
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_rounded),
+              label: 'Início',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.calendar_month_outlined),
+              selectedIcon: Icon(Icons.calendar_month_rounded),
+              label: 'Agenda',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline_rounded),
+              selectedIcon: Icon(Icons.chat_bubble_rounded),
+              label: 'Chat',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Perfil',
+            ),
+          ],
         ),
       ),
     );
@@ -324,7 +298,7 @@ class StatusBadge extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-// SkeletonLoader — placeholder animado (RNF04)
+// SkeletonLoader — placeholder animado
 // ─────────────────────────────────────────────
 class SkeletonLoader extends StatefulWidget {
   final double height;
@@ -363,22 +337,24 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return Container(
-          height: widget.height,
-          width: widget.width,
-          decoration: BoxDecoration(
-            borderRadius: widget.borderRadius,
-            color: Color.lerp(
-              Colors.grey.shade300,
-              Colors.grey.shade100,
-              _controller.value,
+    return ExcludeSemantics(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return Container(
+            height: widget.height,
+            width: widget.width,
+            decoration: BoxDecoration(
+              borderRadius: widget.borderRadius,
+              color: Color.lerp(
+                Colors.grey.shade300,
+                Colors.grey.shade100,
+                _controller.value,
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -411,99 +387,6 @@ class SkeletonGrid extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-// InkTextField — input field reutilizável (dark)
-// ─────────────────────────────────────────────
-class InkTextField extends StatelessWidget {
-  final String label;
-  final String? initialValue;
-  final bool obscureText;
-  final TextInputType? keyboardType;
-  final ValueChanged<String>? onChanged;
-  final bool hasError;
-  final String? errorText;
-  final String? hint;
-  final bool enabled;
-
-  const InkTextField({
-    super.key,
-    required this.label,
-    this.initialValue,
-    this.obscureText = false,
-    this.keyboardType,
-    this.onChanged,
-    this.hasError = false,
-    this.errorText,
-    this.hint,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.6),
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        TextFormField(
-          initialValue: initialValue,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          enabled: enabled,
-          onChanged: onChanged,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-            filled: true,
-            fillColor: Colors.white.withOpacity(0.1),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: hasError
-                    ? const Color(0xFFEF4444).withOpacity(0.6)
-                    : Colors.white.withOpacity(0.1),
-              ),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: hasError
-                    ? const Color(0xFFEF4444).withOpacity(0.6)
-                    : Colors.white.withOpacity(0.1),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: hasError
-                    ? const Color(0xFFEF4444)
-                    : InkFlowColors.accent.withOpacity(0.6),
-                width: 1.5,
-              ),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-        ),
-        if (hasError && errorText != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            errorText!,
-            style: const TextStyle(color: Color(0xFFEF4444), fontSize: 11),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
 // InkButton — botão primário
 // ─────────────────────────────────────────────
 class InkButton extends StatelessWidget {
@@ -512,6 +395,7 @@ class InkButton extends StatelessWidget {
   final bool isOutlined;
   final bool isLoading;
   final double? width;
+  final bool onDark;
 
   const InkButton({
     super.key,
@@ -520,31 +404,39 @@ class InkButton extends StatelessWidget {
     this.isOutlined = false,
     this.isLoading = false,
     this.width,
+    this.onDark = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDisabled = onPressed == null;
+
     return SizedBox(
       width: width ?? double.infinity,
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: isDisabled
-              ? Colors.white.withOpacity(0.1)
+              ? Colors.white.withValues(alpha: 0.1)
               : isOutlined
                   ? Colors.transparent
-                  : InkFlowColors.accent,
+                  : onDark
+                      ? InkFlowColors.accent
+                      : InkFlowColors.primary,
           foregroundColor: isDisabled
-              ? Colors.white.withOpacity(0.3)
+              ? Colors.white.withValues(alpha: 0.3)
               : isOutlined
                   ? InkFlowColors.accent
-                  : InkFlowColors.primary,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+                  : onDark
+                      ? InkFlowColors.primary
+                      : InkFlowColors.white,
+          minimumSize: const Size(48, 54),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             side: isOutlined
-                ? BorderSide(color: InkFlowColors.accent.withOpacity(0.4))
+                ? BorderSide(
+                    color: InkFlowColors.accent.withValues(alpha: 0.55))
                 : BorderSide.none,
           ),
           elevation: 0,
@@ -564,10 +456,12 @@ class InkButton extends StatelessWidget {
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: isDisabled
-                      ? Colors.white.withOpacity(0.3)
+                      ? Colors.white.withValues(alpha: 0.3)
                       : isOutlined
                           ? InkFlowColors.accent
-                          : InkFlowColors.primary,
+                          : onDark
+                              ? InkFlowColors.primary
+                              : InkFlowColors.white,
                 ),
               ),
       ),
@@ -575,11 +469,113 @@ class InkButton extends StatelessWidget {
   }
 }
 
+/// Limita telas de formulário em desktop/tablet sem alterar o layout mobile.
+class ResponsiveBody extends StatelessWidget {
+  final Widget child;
+  final double maxWidth;
+  final EdgeInsetsGeometry padding;
+
+  const ResponsiveBody({
+    super.key,
+    required this.child,
+    this.maxWidth = 760,
+    this.padding = const EdgeInsets.symmetric(horizontal: 20),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Padding(padding: padding, child: child),
+      ),
+    );
+  }
+}
+
+class InkSurface extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+
+  const InkSurface({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: InkFlowColors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: InkFlowColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child:
+          InkWell(onTap: onTap, child: Padding(padding: padding, child: child)),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────
-// AvatarImage — foto circular com rede
+// Imagens de rede
 // ─────────────────────────────────────────────
+
+/// Imagem de rede com cache em disco e fallback visual.
+///
+/// Usa `cached_network_image`, que já era declarado no `pubspec.yaml` mas nunca
+/// tinha sido usado: todas as telas chamavam `Image.network` e rebaixavam a
+/// mesma foto a cada rebuild.
+class NetworkImageWithFallback extends StatelessWidget {
+  final String? url;
+  final double? width;
+  final double? height;
+  final IconData fallbackIcon;
+
+  const NetworkImageWithFallback({
+    super.key,
+    required this.url,
+    this.width,
+    this.height,
+    this.fallbackIcon = Icons.image_not_supported_outlined,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final source = url;
+    if (source == null || source.isEmpty) return _fallback();
+
+    return CachedNetworkImage(
+      imageUrl: source,
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      placeholder: (_, __) => Container(
+        width: width,
+        height: height,
+        color: Colors.grey.shade200,
+      ),
+      errorWidget: (_, __, ___) => _fallback(),
+    );
+  }
+
+  Widget _fallback() {
+    return Container(
+      width: width,
+      height: height,
+      color: Colors.grey.shade200,
+      child: Icon(fallbackIcon, color: Colors.grey.shade400, size: 32),
+    );
+  }
+}
+
+/// Foto de perfil circular, com cache e fallback.
 class AvatarImage extends StatelessWidget {
-  final String url;
+  final String? url;
   final double size;
   final double borderWidth;
 
@@ -599,27 +595,17 @@ class AvatarImage extends StatelessWidget {
         shape: BoxShape.circle,
         border: borderWidth > 0
             ? Border.all(
-                color: InkFlowColors.accent.withOpacity(0.3),
+                color: InkFlowColors.accent.withValues(alpha: 0.3),
                 width: borderWidth,
               )
             : null,
       ),
       child: ClipOval(
-        child: Image.network(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            color: Colors.grey.shade700,
-            child: Icon(
-              Icons.person,
-              color: Colors.grey.shade400,
-              size: size * 0.6,
-            ),
-          ),
-          loadingBuilder: (_, child, progress) {
-            if (progress == null) return child;
-            return Container(color: Colors.grey.shade800);
-          },
+        child: NetworkImageWithFallback(
+          url: url,
+          width: size,
+          height: size,
+          fallbackIcon: Icons.person,
         ),
       ),
     );

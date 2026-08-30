@@ -23,6 +23,26 @@ void main() {
       );
     });
 
+    test('identifica o erro levantado pelo trigger handle_new_user', () {
+      expect(
+        AuthRepository.parseDuplicateField(
+          Exception('cpf_already_registered'),
+        ),
+        DuplicateRegistrationField.cpf,
+      );
+    });
+
+    test('trata o erro genérico do GoTrue no cadastro como CPF duplicado', () {
+      // O GoTrue mascara exceções do trigger; a única restrição que ele pode
+      // violar no cadastro é o índice único de CPF.
+      expect(
+        AuthRepository.parseDuplicateField(
+          Exception('Database error saving new user'),
+        ),
+        DuplicateRegistrationField.cpf,
+      );
+    });
+
     test('retorna null para erro genérico', () {
       expect(
         AuthRepository.parseDuplicateField(Exception('network error')),

@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:inkflow/core/errors/error_utils.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
+import 'package:inkflow/features/profile/data/profile_repository.dart';
+import 'package:inkflow/features/profile/providers/profile_provider.dart';
 
 class ProfileSetupScreen extends ConsumerStatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -46,13 +49,23 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    final file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-    );
-    if (file == null) return;
-    final bytes = await file.readAsBytes();
-    setState(() => _portfolioImages.add(bytes));
+    try {
+      final file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() => _portfolioImages.add(bytes));
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(
+          context,
+          userFriendlyErrorMessage(e),
+        );
+      }
+    }
   }
 
   Future<void> _activateProfile() async {
@@ -60,76 +73,49 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) throw Exception('Usuário não autenticado');
+      final repository = ref.read(profileRepositoryProvider);
 
+      // Qualquer falha de upload aborta a ativação. Antes o erro era
+      // engolido quando ao menos uma foto subia, e o perfil ficava público
+      // com o portfólio incompleto sem ninguém ser avisado.
       final portfolioUrls = <String>[];
-      String? storageError;
       for (var i = 0; i < _portfolioImages.length; i++) {
-        final path = '${user.id}/portfolio_$i.jpg';
-        try {
-          await supabase.storage.from('portfolio').uploadBinary(
-                path,
-                _portfolioImages[i],
-                fileOptions: const FileOptions(
-                  upsert: true,
-                  contentType: 'image/jpeg',
-                ),
-              );
-          portfolioUrls.add(
-            supabase.storage.from('portfolio').getPublicUrl(path),
-          );
-        } on StorageException catch (e) {
-          storageError ??=
-              'Falha no upload do portfólio (${e.message}). '
-              'Crie o bucket "portfolio" no Supabase (veja supabase/migrations/001_rf02_artist_profile.sql).';
-        }
+        portfolioUrls
+            .add(await repository.uploadPortfolioImage(_portfolioImages[i], i));
       }
 
-      if (portfolioUrls.isEmpty && storageError != null) {
-        throw Exception(storageError);
-      }
+      await repository.activateArtistProfile(
+        styles: _selectedStyles,
+        minPrice: double.tryParse(_minPriceController.text) ?? 150,
+        hourlyRate: double.tryParse(_hourlyRateController.text) ?? 200,
+        portfolioUrls: portfolioUrls,
+      );
 
-      await supabase.from('profiles').update({
-        'role': 'ARTIST',
-        'styles': _selectedStyles,
-        'min_price': double.tryParse(_minPriceController.text) ?? 150,
-        'hourly_rate': double.tryParse(_hourlyRateController.text) ?? 200,
-        if (portfolioUrls.isNotEmpty) ...{
-          'portfolio_urls': portfolioUrls,
-          'portfolio_url': portfolioUrls.first,
-        },
-      }).eq('id', user.id);
+      ref.invalidate(userProfileProvider);
 
       if (!mounted) return;
       setState(() => _isLoading = false);
       await _showSuccessModal();
       if (mounted) context.go('/home');
+    } on StorageException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      showErrorSnackBar(
+        context,
+        'Falha ao enviar as fotos do portfólio (${e.message}). '
+        'Verifique se o bucket "portfolio" existe no Supabase.',
+      );
     } on PostgrestException catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        final hint = e.message.contains('Could not find')
-            ? ' Execute o script supabase/migrations/001_rf02_artist_profile.sql no SQL Editor do Supabase.'
-            : '';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao ativar perfil: ${e.message}.$hint'),
-            backgroundColor: const Color(0xFFEF4444),
-            duration: const Duration(seconds: 8),
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      final hint = e.message.contains('Could not find')
+          ? ' Execute os scripts em supabase/migrations no SQL Editor do Supabase.'
+          : '';
+      showErrorSnackBar(context, 'Erro ao ativar perfil: ${e.message}.$hint');
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao ativar perfil: $e'),
-            backgroundColor: const Color(0xFFEF4444),
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      showErrorSnackBar(context, userFriendlyErrorMessage(e));
     }
   }
 
@@ -145,7 +131,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: InkFlowColors.accent.withOpacity(0.15),
+                color: InkFlowColors.accent.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.check_circle,
@@ -307,7 +293,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               Text(
                 'É necessário enviar pelo menos 3 imagens para ativar seu portfólio.',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 12,
                 ),
               ),
@@ -334,7 +320,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12),
+          style:
+              TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
         ),
       ],
     );
@@ -348,7 +335,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12)),
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
@@ -356,7 +344,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white.withOpacity(0.08),
+            fillColor: Colors.white.withValues(alpha: 0.08),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
@@ -376,7 +364,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         width: 100,
         height: 120,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white30),
         ),

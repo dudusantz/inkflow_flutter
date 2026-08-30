@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
 
+/// Ficha de anamnese (RF07) — **em desenvolvimento**.
+///
+/// O formulário valida as respostas, mas nada é enviado ao servidor: não existe
+/// tabela nem política de acesso para dado de saúde, que a LGPD classifica como
+/// sensível. A tela anterior anunciava "dados protegidos e criptografados
+/// (LGPD)" enquanto descartava tudo no `Future.delayed` — a afirmação foi
+/// removida até a persistência existir de fato.
 class AnamnesisScreen extends StatefulWidget {
   const AnamnesisScreen({super.key});
 
@@ -13,8 +21,12 @@ class AnamnesisScreen extends StatefulWidget {
 class _AnamnesisScreenState extends State<AnamnesisScreen> {
   final _formKey = GlobalKey<FormState>();
 
+  final _signatureController = TextEditingController();
+  final _allergyController = TextEditingController();
+  final _medicationController = TextEditingController();
+  final _diseaseController = TextEditingController();
+
   bool _submitted = false;
-  bool _isLoading = false;
   bool _termsError = false;
 
   bool? _hasAllergies;
@@ -28,31 +40,37 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
   bool _bloodDisorder = false;
   bool _terms = false;
 
-  String _signature = '';
-  String _allergyDetails = '';
-  String _medicationDetails = '';
-  String _diseaseDetails = '';
-
   bool get _hasRisk =>
       _anticoagulants ||
-      _pregnantYes ||
+      _isPregnant == true ||
       _bloodDisorder ||
       _heartCondition ||
       _diabetes;
 
-  bool get _pregnantYes => _isPregnant == true;
+  @override
+  void dispose() {
+    _signatureController.dispose();
+    _allergyController.dispose();
+    _medicationController.dispose();
+    _diseaseController.dispose();
+    super.dispose();
+  }
 
-  void _handleSubmit() async {
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: InkFlowColors.error,
+      ),
+    );
+  }
+
+  void _handleSubmit() {
     setState(() => _termsError = false);
 
     if (!_terms) {
       setState(() => _termsError = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Você precisa aceitar a declaração para enviar.'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
-      );
+      _showError('Você precisa aceitar a declaração para enviar.');
       return;
     }
 
@@ -60,32 +78,13 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
         _usesMedication == null ||
         _hasDisease == null ||
         _isPregnant == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Responda todas as perguntas de saúde.'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
-      );
+      _showError('Responda todas as perguntas de saúde.');
       return;
     }
 
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      try {
-        await Future.delayed(const Duration(milliseconds: 1200));
-
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _submitted = true;
-          });
-        }
-      } catch (e) {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
+    setState(() => _submitted = true);
   }
 
   @override
@@ -93,16 +92,18 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     return Scaffold(
       body: Column(
         children: [
-          _buildSecureHeader(),
-          Expanded(
-            child: _submitted ? _buildResult() : _buildForm(),
+          _buildHeader(),
+          const UnderDevelopmentBanner(
+            message: 'Pré-visualização: as respostas não são enviadas nem '
+                'armazenadas em nenhum servidor.',
           ),
+          Expanded(child: _submitted ? _buildResult() : _buildForm()),
         ],
       ),
     );
   }
 
-  Widget _buildSecureHeader() {
+  Widget _buildHeader() {
     return Container(
       color: InkFlowColors.primary,
       padding: EdgeInsets.fromLTRB(
@@ -116,27 +117,17 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
           IconButton(
             icon: const Icon(Icons.arrow_back_ios_new,
                 color: Colors.white, size: 20),
+            tooltip: 'Voltar',
             onPressed: () => context.go('/home'),
           ),
-          const Icon(Icons.lock, color: InkFlowColors.accent, size: 20),
-          const SizedBox(width: 8),
           const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ficha de Anamnese',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Dados protegidos e criptografados (LGPD)',
-                  style: TextStyle(color: Color(0x99FFFFFF), fontSize: 11),
-                ),
-              ],
+            child: Text(
+              'Ficha de Anamnese',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -145,71 +136,89 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
   }
 
   Widget _buildResult() {
-    if (_hasRisk) {
-      return Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.warning, color: Color(0xFFEF4444), size: 64),
-            const SizedBox(height: 16),
-            const Text(
-              'Ficha enviada com Alerta Médico',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1F2937),
-              ),
-              textAlign: TextAlign.center,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Icon(
+            _hasRisk ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+            color: _hasRisk ? InkFlowColors.error : InkFlowColors.success,
+            size: 64,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _hasRisk
+                ? 'Respostas com alerta médico'
+                : 'Respostas preenchidas',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1F2937),
             ),
-            const SizedBox(height: 16),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          if (_hasRisk)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withOpacity(0.05),
+                color: InkFlowColors.error.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                    color: const Color(0xFFEF4444).withOpacity(0.2)),
+                    color: InkFlowColors.error.withValues(alpha: 0.2)),
               ),
               child: const Text(
-                'Você informou condições de saúde críticas. Este procedimento exige laudo médico de liberação antes de prosseguir.',
+                'Você informou condições de saúde críticas. Este procedimento '
+                'exige laudo médico de liberação antes de prosseguir.',
                 style: TextStyle(color: Color(0xFFDC2626), fontSize: 13),
               ),
             ),
-            const SizedBox(height: 32),
-            InkButton(
-              label: 'Voltar para Agenda',
-              onPressed: () => context.go('/schedule'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.verified_user, color: Color(0xFF10B981), size: 64),
-          const SizedBox(height: 16),
-          const Text(
-            'Ficha enviada com segurança',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              'Assinatura digital registrada. Seus dados estão protegidos pela LGPD.',
-              textAlign: TextAlign.center,
-            ),
-          ),
+          const SizedBox(height: 24),
+          _buildSummary(),
           const SizedBox(height: 32),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: InkButton(
-              label: 'Voltar ao Início',
-              onPressed: () => context.go('/home'),
+          InkButton(
+            label: 'Voltar para a Agenda',
+            onPressed: () => context.go('/schedule'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Resumo local do que foi preenchido. Deixa claro que a informação existe
+  /// apenas nesta sessão.
+  Widget _buildSummary() {
+    final lines = <String>[
+      'Assinatura: ${_signatureController.text.trim()}',
+      if (_hasAllergies == true && _allergyController.text.trim().isNotEmpty)
+        'Alergias: ${_allergyController.text.trim()}',
+      if (_usesMedication == true &&
+          _medicationController.text.trim().isNotEmpty)
+        'Medicamentos: ${_medicationController.text.trim()}',
+      if (_hasDisease == true && _diseaseController.text.trim().isNotEmpty)
+        'Condições: ${_diseaseController.text.trim()}',
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Resumo desta sessão',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          ...lines.map(
+            (line) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(line,
+                  style: const TextStyle(
+                      fontSize: 13, color: Color(0xFF4B5563))),
             ),
           ),
         ],
@@ -233,8 +242,8 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
             if (_hasAllergies == true) ...[
               const SizedBox(height: 8),
               TextFormField(
+                controller: _allergyController,
                 decoration: _inputDecoration('Detalhe suas alergias'),
-                onSaved: (v) => _allergyDetails = v ?? '',
               ),
             ],
             const SizedBox(height: 16),
@@ -246,8 +255,8 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
             if (_usesMedication == true) ...[
               const SizedBox(height: 8),
               TextFormField(
+                controller: _medicationController,
                 decoration: _inputDecoration('Quais medicamentos?'),
-                onSaved: (v) => _medicationDetails = v ?? '',
               ),
             ],
             const SizedBox(height: 16),
@@ -259,8 +268,8 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
             if (_hasDisease == true) ...[
               const SizedBox(height: 8),
               TextFormField(
+                controller: _diseaseController,
                 decoration: _inputDecoration('Descreva as condições'),
-                onSaved: (v) => _diseaseDetails = v ?? '',
               ),
             ],
             const SizedBox(height: 16),
@@ -274,55 +283,43 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
               'Condições adicionais',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
+            _buildCheckbox('Uso de anticoagulantes', _anticoagulants,
+                (v) => setState(() => _anticoagulants = v)),
             _buildCheckbox(
-              'Uso de anticoagulantes',
-              _anticoagulants,
-              (v) => setState(() => _anticoagulants = v!),
-            ),
-            _buildCheckbox(
-              'Diabetes',
-              _diabetes,
-              (v) => setState(() => _diabetes = v!),
-            ),
-            _buildCheckbox(
-              'Problemas cardíacos',
-              _heartCondition,
-              (v) => setState(() => _heartCondition = v!),
-            ),
-            _buildCheckbox(
-              'Distúrbios de coagulação',
-              _bloodDisorder,
-              (v) => setState(() => _bloodDisorder = v!),
-            ),
+                'Diabetes', _diabetes, (v) => setState(() => _diabetes = v)),
+            _buildCheckbox('Problemas cardíacos', _heartCondition,
+                (v) => setState(() => _heartCondition = v)),
+            _buildCheckbox('Distúrbios de coagulação', _bloodDisorder,
+                (v) => setState(() => _bloodDisorder = v)),
             const SizedBox(height: 24),
             const Text(
-              'Assinatura Digital',
+              'Assinatura',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             TextFormField(
-              decoration: _inputDecoration('Seu nome completo (Assinatura) *'),
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Assinatura obrigatória' : null,
-              onSaved: (v) => _signature = v!,
+              controller: _signatureController,
+              decoration: _inputDecoration('Seu nome completo *'),
+              validator: (v) => v == null || v.trim().isEmpty
+                  ? 'Assinatura obrigatória'
+                  : null,
             ),
             const SizedBox(height: 16),
             Container(
               decoration: BoxDecoration(
                 color: _termsError
-                    ? const Color(0xFFEF4444).withOpacity(0.08)
+                    ? InkFlowColors.error.withValues(alpha: 0.08)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _termsError
-                      ? const Color(0xFFEF4444)
-                      : Colors.transparent,
+                  color:
+                      _termsError ? InkFlowColors.error : Colors.transparent,
                   width: 1.5,
                 ),
               ),
               child: CheckboxListTile(
                 title: const Text(
-                  'Declaro que as informações são verdadeiras e estou ciente das implicações legais deste documento.',
+                  'Declaro que as informações são verdadeiras.',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
                 value: _terms,
@@ -340,21 +337,22 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                 padding: EdgeInsets.only(left: 8, top: 4),
                 child: Text(
                   'Aceite a declaração para continuar.',
-                  style: TextStyle(color: Color(0xFFEF4444), fontSize: 11),
+                  style: TextStyle(color: InkFlowColors.error, fontSize: 11),
                 ),
               ),
             const SizedBox(height: 24),
-            InkButton(
-              label: 'Assinar e Enviar',
-              onPressed: _isLoading ? null : _handleSubmit,
-              isLoading: _isLoading,
-            ),
+            InkButton(label: 'Revisar Respostas', onPressed: _handleSubmit),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
+  /// Par Sim/Não como `SegmentedButton`.
+  ///
+  /// `RadioListTile.groupValue`/`onChanged` estão depreciados e quebram numa
+  /// versão futura do Flutter.
   Widget _yesNoQuestion(
     String question,
     bool? value,
@@ -366,31 +364,17 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
         Text(question,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: RadioListTile<bool>(
-                title: const Text('Sim', style: TextStyle(fontSize: 13)),
-                value: true,
-                groupValue: value,
-                onChanged: (v) => onChanged(v!),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                activeColor: InkFlowColors.accent,
-              ),
-            ),
-            Expanded(
-              child: RadioListTile<bool>(
-                title: const Text('Não', style: TextStyle(fontSize: 13)),
-                value: false,
-                groupValue: value,
-                onChanged: (v) => onChanged(v!),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                activeColor: InkFlowColors.accent,
-              ),
-            ),
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(value: true, label: Text('Sim')),
+            ButtonSegment(value: false, label: Text('Não')),
           ],
+          selected: value == null ? <bool>{} : {value},
+          emptySelectionAllowed: true,
+          showSelectedIcon: false,
+          onSelectionChanged: (selection) {
+            if (selection.isNotEmpty) onChanged(selection.first);
+          },
         ),
       ],
     );
@@ -411,12 +395,12 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
   Widget _buildCheckbox(
     String title,
     bool value,
-    void Function(bool?) onChanged,
+    ValueChanged<bool> onChanged,
   ) {
     return CheckboxListTile(
       title: Text(title, style: const TextStyle(fontSize: 14)),
       value: value,
-      onChanged: onChanged,
+      onChanged: (v) => onChanged(v ?? false),
       controlAffinity: ListTileControlAffinity.leading,
       contentPadding: EdgeInsets.zero,
       dense: true,

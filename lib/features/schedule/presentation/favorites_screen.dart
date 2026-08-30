@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
+import 'package:inkflow/core/widgets/shared_widgets.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
@@ -8,7 +9,7 @@ class FavoritesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: InkFlowColors.background,
       appBar: AppBar(
         backgroundColor: InkFlowColors.primary,
         elevation: 0,
@@ -30,8 +31,14 @@ class FavoritesScreen extends StatelessWidget {
                 fontSize: 18,
                 fontWeight: FontWeight.bold)),
       ),
-      body: _buildEmptyState(
-          context), // Inicialmente vazia até integrarmos com o banco
+      body: Column(
+        children: [
+          const UnderDevelopmentBanner(
+            message: 'Favoritar tatuagens ainda não está disponível.',
+          ),
+          Expanded(child: _buildEmptyState(context)),
+        ],
+      ),
     );
   }
 
@@ -49,7 +56,8 @@ class FavoritesScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                        color: Colors.black.withOpacity(0.05), blurRadius: 20)
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20)
                   ]),
               child: const Icon(Icons.favorite_border,
                   size: 48, color: Colors.grey),

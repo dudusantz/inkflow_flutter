@@ -1,52 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:inkflow/core/theme/app_theme.dart';
-import 'package:inkflow/core/config/app_config.dart';
-import 'package:inkflow/core/widgets/shared_widgets.dart';
 
-// 1. PROVIDER DOS ESTÚDIOS EM ALTA
+import 'package:inkflow/core/errors/error_utils.dart';
+import 'package:inkflow/core/theme/app_theme.dart';
+import 'package:inkflow/core/widgets/shared_widgets.dart';
+import 'package:inkflow/features/schedule/data/appointment_repository.dart';
+import 'package:inkflow/features/schedule/domain/appointment.dart';
+import 'package:inkflow/features/search/data/artist_directory_repository.dart';
+import 'package:inkflow/features/search/domain/artist_summary.dart';
+import 'package:inkflow/features/profile/providers/profile_provider.dart';
+
 final trendingArtistsProvider =
-    FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  try {
-    final supabase = Supabase.instance.client;
-    final response = await supabase
-        .from('profiles')
-        .select('name, styles, rating, avatar_url')
-        .eq('role', 'ARTIST')
-        .limit(5);
-    return List<Map<String, dynamic>>.from(response);
-  } catch (e) {
-    return [];
-  }
+    FutureProvider.autoDispose<List<ArtistSummary>>((ref) {
+  return ref.watch(artistDirectoryRepositoryProvider).trending();
 });
 
-// 2. PROVIDER DA PRÓXIMA SESSÃO (DADOS REAIS)
-final nextSessionProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
-  if (!AppConfig.enableAppointmentsApi) return null;
-
-  try {
-    final supabase = Supabase.instance.client;
-    final userId = supabase.auth.currentUser?.id;
-    if (userId == null) return null;
-
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final response = await supabase
-        .from('appointments')
-        .select('date, time, style, status, artist_id')
-        .eq('client_id', userId)
-        .gte('date', today)
-        .order('date', ascending: true)
-        .order('time', ascending: true)
-        .limit(1)
-        .maybeSingle();
-
-    return response;
-  } catch (_) {
-    return null;
-  }
+final nextSessionProvider = FutureProvider.autoDispose<Appointment?>((ref) {
+  return ref.watch(appointmentRepositoryProvider).nextSessionForClient();
 });
 
 class ClientHomeScreen extends ConsumerStatefulWidget {
@@ -57,12 +29,10 @@ class ClientHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
-  int _currentIndex = 0;
-
   void _showComingSoon() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Funcionalidade em desenvolvimento 🚀'),
+        content: const Text('Funcionalidade em desenvolvimento'),
         backgroundColor: InkFlowColors.accent,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -73,54 +43,54 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profile = ref.watch(userProfileProvider).value;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F4F5),
+      backgroundColor: InkFlowColors.background,
       body: SafeArea(
         top: false,
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(profile?.firstName ?? 'Cliente', profile?.avatarUrl),
             _buildQuickActions(),
             Expanded(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSearchBar(),
-                    const SizedBox(height: 32),
-                    _buildSectionTitle('Minha Próxima Sessão', 'Ver detalhes',
-                        () => context.go('/schedule')),
-                    const SizedBox(height: 16),
-                    _buildNextSessionSection(),
-                    const SizedBox(height: 32),
-                    _buildSectionTitle('Estúdios em Alta', 'Explorar',
-                        () => context.go('/search')),
-                    const SizedBox(height: 16),
-                    _buildRecommendedArtists(),
-                    const SizedBox(height: 32),
-                  ],
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: ResponsiveBody(
+                  maxWidth: 920,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSearchBar(),
+                      const SizedBox(height: 40),
+                      _buildSectionTitle('Minha Próxima Sessão', 'Ver detalhes',
+                          () => context.go('/schedule')),
+                      const SizedBox(height: 16),
+                      _buildNextSessionSection(),
+                      const SizedBox(height: 40),
+                      _buildSectionTitle('Estúdios em Alta', 'Explorar',
+                          () => context.go('/search')),
+                      const SizedBox(height: 16),
+                      _buildRecommendedArtists(),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: const AppBottomNav(currentIndex: 0),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(String firstName, String? avatarUrl) {
     return Container(
       padding: EdgeInsets.fromLTRB(
           20, MediaQuery.of(context).padding.top + 20, 20, 24),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [InkFlowColors.primary, Color(0xFF1F2937)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: InkFlowColors.heroGradient,
         boxShadow: [
           BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))
         ],
@@ -135,32 +105,30 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
               Row(
                 children: [
                   IconButton(
-                      icon: const Icon(Icons.notifications_outlined,
-                          color: Colors.white),
-                      onPressed: _showComingSoon),
+                    icon: const Icon(Icons.notifications_outlined,
+                        color: Colors.white),
+                    tooltip: 'Notificações',
+                    onPressed: _showComingSoon,
+                  ),
                   const SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border:
-                            Border.all(color: InkFlowColors.accent, width: 2)),
-                    child: const CircleAvatar(
-                        radius: 18,
-                        backgroundImage: NetworkImage(
-                            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop')),
+                  InkWell(
+                    onTap: () => context.go('/profile'),
+                    customBorder: const CircleBorder(),
+                    child:
+                        AvatarImage(url: avatarUrl, size: 40, borderWidth: 2),
                   ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 24),
-          const Text('Olá, Eduardo 👋',
-              style: TextStyle(
+          Text('Olá, $firstName',
+              style: const TextStyle(
                   color: Color(0x99FFFFFF),
                   fontSize: 15,
                   fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
-          const Text('Encontre seu próximo estilo.',
+          const Text('Sua próxima arte começa aqui.',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -173,28 +141,20 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
 
   Widget _buildQuickActions() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: const BoxDecoration(
+        color: InkFlowColors.white,
+        border: Border(bottom: BorderSide(color: InkFlowColors.border)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 18),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _actionButton(
               Icons.explore_outlined, 'Explorar', () => context.go('/search')),
-          // Usando push se as rotas já existirem no router, senão volta para o coming soon
-          _actionButton(Icons.favorite_border, 'Favoritos', () {
-            try {
-              context.push('/favorites');
-            } catch (e) {
-              _showComingSoon();
-            }
-          }),
-          _actionButton(Icons.medical_information_outlined, 'Cuidados', () {
-            try {
-              context.push('/care');
-            } catch (e) {
-              _showComingSoon();
-            }
-          }),
+          _actionButton(Icons.favorite_border, 'Favoritos',
+              () => context.push('/favorites')),
+          _actionButton(Icons.medical_information_outlined, 'Cuidados',
+              () => context.push('/care')),
           _actionButton(Icons.chat_bubble_outline, 'Mensagens',
               () => context.go('/inbox')),
         ],
@@ -212,9 +172,9 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-                color: InkFlowColors.accent.withOpacity(0.1),
+                color: InkFlowColors.accent.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(16)),
-            child: Icon(icon, color: InkFlowColors.accent, size: 26),
+            child: Icon(icon, color: InkFlowColors.accentDark, size: 25),
           ),
           const SizedBox(height: 8),
           Text(label,
@@ -228,43 +188,26 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   }
 
   Widget _buildSearchBar() {
-    return GestureDetector(
+    return InkSurface(
       onTap: () => context.go('/search'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 15,
-                offset: const Offset(0, 5))
-          ],
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
       child: Row(
         children: [
+          const Icon(Icons.search_rounded,
+              color: InkFlowColors.accentDark, size: 22),
+          const SizedBox(width: 12),
           Expanded(
-            child: Row(
-              children: [
-                const Icon(Icons.search, color: InkFlowColors.accent, size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Buscar estúdios, artistas ou estilos...',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            child: Text(
+              'Buscar estúdios, artistas ou estilos...',
+              style: TextStyle(
+                color: Colors.grey.shade500,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
-      ),
       ),
     );
   }
@@ -284,7 +227,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                 style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: InkFlowColors.accent))),
+                    color: InkFlowColors.accentDark))),
       ],
     );
   }
@@ -293,27 +236,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     final sessionAsync = ref.watch(nextSessionProvider);
 
     return sessionAsync.when(
-      data: (session) {
-        if (session == null || session.isEmpty) return _buildEmptySessionCard();
-
-        final dateStr = session['date'] as String?;
-        DateTime? date;
-        if (dateStr != null) date = DateTime.tryParse(dateStr);
-
-        final month = date != null
-            ? DateFormat('MMM', 'pt_BR').format(date).toUpperCase()
-            : 'MÊS';
-        final day = date != null ? DateFormat('dd').format(date) : '--';
-        final style = session['style'] ?? 'Tatuagem';
-        final time = session['time'] ?? 'A definir';
-        final status = session['status'] ?? 'Confirmado';
-
-        String artistName =
-            session['artist_name']?.toString() ?? 'Estúdio parceiro';
-
-        return _buildNextSessionCard(
-            month, day, style, artistName, time, status);
-      },
+      data: (session) =>
+          session == null ? _buildEmptySessionCard() : _sessionCard(session),
       loading: () => const Padding(
           padding: EdgeInsets.symmetric(vertical: 20),
           child: Center(
@@ -322,8 +246,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     );
   }
 
-  Widget _buildNextSessionCard(String month, String day, String style,
-      String artistName, String time, String status) {
+  Widget _sessionCard(Appointment session) {
+    final month = DateFormat('MMM', 'pt_BR').format(session.date).toUpperCase();
+    final day = DateFormat('dd').format(session.date);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -331,7 +257,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 4))
         ],
@@ -364,19 +290,12 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Sessão - $style',
+                  'Sessão - ${session.style}',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                     color: InkFlowColors.primary,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Com $artistName',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -388,7 +307,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
-                        time,
+                        session.timeRangeLabel,
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 12,
@@ -405,13 +324,12 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           const SizedBox(width: 8),
           Flexible(
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.1),
+                  color: InkFlowColors.success.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20)),
               child: Text(
-                status.toUpperCase(),
+                session.status.toUpperCase(),
                 style: const TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.bold,
@@ -478,19 +396,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           scrollDirection: Axis.horizontal,
           clipBehavior: Clip.none,
           child: Row(
-            children: artists.map((artist) {
-              final styles = artist['styles'];
-              final styleLabel = styles is List && styles.isNotEmpty
-                  ? styles.map((e) => e.toString()).join(' / ')
-                  : 'Tatuagem';
-              return _artistCard(
-                artist['name'] ?? 'Estúdio Real',
-                styleLabel,
-                artist['rating']?.toString() ?? '5.0',
-                artist['avatar_url'] ??
-                    'https://images.unsplash.com/photo-1611501275019-9b5cda994e8d?w=300&fit=crop',
-              );
-            }).toList(),
+            children: artists.map(_artistCard).toList(),
           ),
         );
       },
@@ -498,15 +404,19 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           padding: EdgeInsets.symmetric(vertical: 32),
           child: Center(
               child: CircularProgressIndicator(color: InkFlowColors.accent))),
-      error: (error, stack) => const Padding(
-          padding: EdgeInsets.symmetric(vertical: 20),
-          child: Text('Erro ao conectar com o banco de dados.',
-              style: TextStyle(color: Colors.red))),
+      error: (error, stack) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: AsyncErrorView(
+            error: error,
+            customMessage: 'Erro ao carregar estúdios.',
+            onRetry: () => ref.invalidate(trendingArtistsProvider),
+          )),
     );
   }
 
-  Widget _artistCard(
-      String name, String style, String rating, String imageUrl) {
+  Widget _artistCard(ArtistSummary artist) {
+    final imageUrl = artist.coverImageUrl;
+
     return Container(
       width: 160,
       margin: const EdgeInsets.only(right: 16),
@@ -515,7 +425,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 4))
         ],
@@ -525,16 +435,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
         children: [
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Image.network(
-              imageUrl,
+            child: NetworkImageWithFallback(
+              url: imageUrl,
               height: 110,
               width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                  height: 110,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.image_not_supported,
-                      color: Colors.grey)),
             ),
           ),
           Padding(
@@ -542,7 +446,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name,
+                Text(artist.name,
                     style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
@@ -550,15 +454,17 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 2),
-                Text(style,
-                    style:
-                        TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                Text(artist.stylesLabel,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.star, color: Color(0xFFF59E0B), size: 16),
+                    const Icon(Icons.star,
+                        color: InkFlowColors.warning, size: 16),
                     const SizedBox(width: 4),
-                    Text(rating,
+                    Text(artist.rating.toStringAsFixed(1),
                         style: const TextStyle(
                             fontSize: 13, fontWeight: FontWeight.bold)),
                   ],
@@ -568,35 +474,6 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      currentIndex: _currentIndex,
-      onTap: (index) {
-        setState(() => _currentIndex = index);
-        if (index == 0) context.go('/home');
-        if (index == 1) context.go('/schedule');
-        if (index == 2) context.go('/inbox');
-        if (index == 3) context.go('/profile');
-      },
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: InkFlowColors.accent,
-      unselectedItemColor: const Color(0xFF9CA3AF),
-      selectedFontSize: 12,
-      unselectedFontSize: 12,
-      elevation: 20,
-      backgroundColor: Colors.white,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Início'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined), label: 'Agenda'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline), label: 'Perfil'),
-      ],
     );
   }
 }

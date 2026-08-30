@@ -1,25 +1,78 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:inkflow/core/errors/error_utils.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
+import 'package:inkflow/features/search/data/artist_directory_repository.dart';
+import 'package:inkflow/features/search/domain/artist_summary.dart';
 
-// --- PROVIDER DE DADOS REAIS (SUPABASE) ---
-// Ele vai buscar apenas quem tem a role 'ARTIST' na tabela 'profiles'
 final artistsSearchProvider =
-    FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  try {
-    final response = await Supabase.instance.client
-        .from('profiles')
-        .select()
-        .eq('role', 'ARTIST');
-    return List<Map<String, dynamic>>.from(response);
-  } catch (e) {
-    debugPrint('Erro ao buscar tatuadores: $e');
-    return [];
-  }
+    FutureProvider.autoDispose<List<ArtistSummary>>((ref) {
+  return ref.watch(artistDirectoryRepositoryProvider).listArtists();
 });
+
+const _allStyles = 'Todos';
+const _allStates = 'Todos';
+const _allCities = 'Todas';
+
+/// Critérios de busca já confirmados pelo usuário.
+class SearchFilters {
+  final String query;
+  final String style;
+  final String state;
+  final String city;
+
+  const SearchFilters({
+    this.query = '',
+    this.style = _allStyles,
+    this.state = _allStates,
+    this.city = _allCities,
+  });
+
+  bool get isEmpty =>
+      query.trim().isEmpty &&
+      style == _allStyles &&
+      state == _allStates &&
+      city == _allCities;
+
+  SearchFilters copyWith({
+    String? query,
+    String? style,
+    String? state,
+    String? city,
+  }) {
+    return SearchFilters(
+      query: query ?? this.query,
+      style: style ?? this.style,
+      state: state ?? this.state,
+      city: city ?? this.city,
+    );
+  }
+
+  List<ArtistSummary> apply(List<ArtistSummary> artists) {
+    final normalizedQuery = query.trim().toLowerCase();
+
+    final matches = artists.where((artist) {
+      final matchStyle = style == _allStyles || artist.styles.contains(style);
+      final matchState = state == _allStates || artist.state == state;
+      final matchCity = city == _allCities || artist.city == city;
+      final matchQuery = normalizedQuery.isEmpty ||
+          artist.name.toLowerCase().contains(normalizedQuery);
+      return matchStyle && matchState && matchCity && matchQuery;
+    }).toList();
+
+    matches.sort((a, b) => b.rating.compareTo(a.rating));
+    return matches;
+  }
+
+  String get locationLabel {
+    if (state == _allStates) return 'Brasil (Todos os estados)';
+    if (city == _allCities) return 'Todo o estado: $state';
+    return '$city, $state';
+  }
+}
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -29,136 +82,109 @@ class SearchScreen extends ConsumerStatefulWidget {
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
-  String _searchQuery = '';
-  String _selectedStyle = 'Todos';
-  String _selectedState = 'Todos';
-  String _selectedCity = 'Todas';
+  final _queryController = TextEditingController();
+
+  /// Filtros em edição (o que o usuário está montando).
+  SearchFilters _draft = const SearchFilters();
+
+  /// Filtros efetivamente aplicados à lista.
+  ///
+  /// Antes existia apenas um conjunto: a filtragem acontecia a cada tecla e o
+  /// botão "Buscar Tatuadores" só acendia uma mensagem de erro, sem efeito.
+  SearchFilters? _applied;
+
   bool _showValidationError = false;
 
-  bool get _hasActiveFilter =>
-      _searchQuery.isNotEmpty ||
-      _selectedStyle != 'Todos' ||
-      _selectedState != 'Todos' ||
-      _selectedCity != 'Todas';
+  final List<({String name, IconData icon})> _styleOptions = const [
+    (name: _allStyles, icon: Icons.grid_view_rounded),
+    (name: 'Black Work', icon: Icons.draw_outlined),
+    (name: 'Realismo', icon: Icons.camera_alt_outlined),
+    (name: 'Geométrico', icon: Icons.format_shapes_rounded),
+    (name: 'Aquarela', icon: Icons.palette_outlined),
+    (name: 'Old School', icon: Icons.anchor_rounded),
+    (name: 'Minimalista', icon: Icons.horizontal_rule_rounded),
+  ];
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
 
   void _runSearch() {
-    if (!_hasActiveFilter) {
+    FocusScope.of(context).unfocus();
+
+    if (_draft.isEmpty) {
       setState(() => _showValidationError = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Por favor, selecione ao menos um estilo ou localização para buscar.',
-          ),
-          backgroundColor: Color(0xFFEF4444),
-        ),
+      showErrorSnackBar(
+        context,
+        'Selecione ao menos um estilo, uma localização ou digite um nome.',
       );
       return;
     }
-    setState(() => _showValidationError = false);
-  }
 
-  // Filtros Visuais Premium (Ícones Nativos)
-  final List<Map<String, dynamic>> _styles = [
-    {'name': 'Todos', 'icon': Icons.grid_view_rounded},
-    {'name': 'Black Work', 'icon': Icons.draw_outlined},
-    {'name': 'Realismo', 'icon': Icons.camera_alt_outlined},
-    {'name': 'Geométrico', 'icon': Icons.format_shapes_rounded},
-    {'name': 'Aquarela', 'icon': Icons.palette_outlined},
-    {'name': 'Old School', 'icon': Icons.anchor_rounded},
-    {'name': 'Minimalista', 'icon': Icons.horizontal_rule_rounded},
-  ];
-
-  // Filtra a lista real vinda do banco
-  List<Map<String, dynamic>> _filterArtists(
-      List<Map<String, dynamic>> allArtists) {
-    final filtered = allArtists.where((artist) {
-      // Tratamento seguro para dados que podem estar nulos no banco
-      final artistStyles =
-          (artist['styles'] as List?)?.map((e) => e.toString()).toList() ?? [];
-      final artistState = artist['state']?.toString() ?? '';
-      final artistCity = artist['city']?.toString() ?? '';
-      final artistName = artist['name']?.toString() ?? '';
-
-      final matchStyle =
-          _selectedStyle == 'Todos' || artistStyles.contains(_selectedStyle);
-      final matchState =
-          _selectedState == 'Todos' || artistState == _selectedState;
-      final matchCity = _selectedCity == 'Todas' || artistCity == _selectedCity;
-      final matchSearch = _searchQuery.isEmpty ||
-          artistName.toLowerCase().contains(_searchQuery.toLowerCase());
-
-      return matchStyle && matchState && matchCity && matchSearch;
-    }).toList();
-
-    filtered.sort((a, b) {
-      final ratingA =
-          double.tryParse(a['rating']?.toString() ?? '0') ?? 0;
-      final ratingB =
-          double.tryParse(b['rating']?.toString() ?? '0') ?? 0;
-      return ratingB.compareTo(ratingA);
+    setState(() {
+      _showValidationError = false;
+      _applied = _draft;
     });
-    return filtered;
   }
 
-  // Define os estados e cidades disponíveis baseados APENAS nos artistas que existem
-  List<String> _getAvailableStates(List<Map<String, dynamic>> allArtists) {
-    final states = allArtists
-        .map((a) => a['state']?.toString() ?? '')
-        .where((s) => s.isNotEmpty)
+  List<String> _availableStates(List<ArtistSummary> artists) {
+    final states = artists
+        .map((a) => a.state)
+        .whereType<String>()
         .toSet()
-        .toList();
-    states.sort();
-    return ['Todos', ...states];
+        .toList()
+      ..sort();
+    return [_allStates, ...states];
   }
 
-  List<String> _getAvailableCities(List<Map<String, dynamic>> allArtists) {
-    if (_selectedState == 'Todos') return ['Todas'];
-    final cities = allArtists
-        .where((a) => a['state'] == _selectedState)
-        .map((a) => a['city']?.toString() ?? '')
-        .where((c) => c.isNotEmpty)
+  List<String> _availableCities(List<ArtistSummary> artists, String state) {
+    if (state == _allStates) return [_allCities];
+    final cities = artists
+        .where((a) => a.state == state)
+        .map((a) => a.city)
+        .whereType<String>()
         .toSet()
-        .toList();
-    cities.sort();
-    return ['Todas', ...cities];
-  }
-
-  String get _currentLocationText {
-    if (_selectedState == 'Todos') return 'Brasil (Todos os estados)';
-    if (_selectedCity == 'Todas') return 'Todo o estado: $_selectedState';
-    return '$_selectedCity, $_selectedState';
+        .toList()
+      ..sort();
+    return [_allCities, ...cities];
   }
 
   @override
   Widget build(BuildContext context) {
-    // Escuta o provider do banco de dados
     final artistsAsync = ref.watch(artistsSearchProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: InkFlowColors.background,
       body: SafeArea(
         bottom: false,
         child: artistsAsync.when(
-          loading: () => Padding(
-            padding: const EdgeInsets.all(16),
+          loading: () => const Padding(
+            padding: EdgeInsets.all(16),
             child: Column(
               children: [
-                const SkeletonLoader(height: 52, width: double.infinity),
-                const SizedBox(height: 16),
-                const SkeletonGrid(itemCount: 4),
+                SkeletonLoader(height: 52, width: double.infinity),
+                SizedBox(height: 16),
+                SkeletonGrid(itemCount: 4),
               ],
             ),
           ),
-          error: (err, stack) => Center(child: Text('Erro ao carregar: $err')),
+          error: (err, stack) => AsyncErrorView(
+            error: err,
+            customMessage: 'Erro ao carregar tatuadores.',
+            onRetry: () => ref.invalidate(artistsSearchProvider),
+          ),
           data: (allArtists) {
-            final results = _filterArtists(allArtists);
-            final availableStates = _getAvailableStates(allArtists);
+            final filters = _applied;
+            final results =
+                filters == null ? allArtists : filters.apply(allArtists);
 
             return Column(
               children: [
-                _buildHeader(availableStates, allArtists),
-                _buildVisualFilterChips(),
-                _buildSectionTitle('Inspirações para você', results.length),
+                _buildHeader(allArtists),
+                _buildStyleChips(),
+                _buildSectionTitle(results.length),
                 Expanded(child: _buildResultsGrid(results)),
               ],
             );
@@ -168,8 +194,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildHeader(
-      List<String> availableStates, List<Map<String, dynamic>> allArtists) {
+  Widget _buildHeader(List<ArtistSummary> allArtists) {
     return Container(
       decoration: const BoxDecoration(
         color: InkFlowColors.primary,
@@ -186,6 +211,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new,
                     color: Colors.white, size: 20),
+                tooltip: 'Voltar',
                 onPressed: () {
                   if (context.canPop()) {
                     context.pop();
@@ -193,44 +219,46 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     context.go('/home');
                   }
                 },
-                padding: const EdgeInsets.all(8),
-                constraints: const BoxConstraints(),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 4),
               Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque, // Melhora a área de clique
-                  onTap: () => _openLocationModal(availableStates, allArtists),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Buscando em',
-                          style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on,
-                              color: InkFlowColors.accent, size: 18),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _currentLocationText,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                child: Semantics(
+                  button: true,
+                  label: 'Alterar região de busca',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _openLocationModal(allArtists),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Buscando em',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500)),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on,
+                                color: InkFlowColors.accent, size: 18),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _draft.locationLabel,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          const Icon(Icons.keyboard_arrow_down,
-                              color: Colors.white, size: 20),
-                        ],
-                      ),
-                    ],
+                            const Icon(Icons.keyboard_arrow_down,
+                                color: Colors.white, size: 20),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -238,29 +266,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
           const SizedBox(height: 24),
           Container(
-            height: 52, // Altura maior para facilitar o toque
+            height: 52,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
+              color: Colors.white.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: TextField(
+              controller: _queryController,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _runSearch(),
+              onChanged: (value) => setState(() {
+                _draft = _draft.copyWith(query: value);
+                _showValidationError = false;
+              }),
               style: const TextStyle(color: Colors.white, fontSize: 16),
               decoration: InputDecoration(
                 hintText: 'Buscar tatuador pelo nome...',
                 hintStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.5), fontSize: 15),
+                    color: Colors.white.withValues(alpha: 0.5), fontSize: 15),
                 prefixIcon: Icon(Icons.search,
-                    color: Colors.white.withOpacity(0.7), size: 22),
+                    color: Colors.white.withValues(alpha: 0.7), size: 22),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                  _showValidationError = false;
-                });
-              },
             ),
           ),
           const SizedBox(height: 12),
@@ -287,10 +316,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 'Selecione estilo, localização ou digite um nome.',
-                style: TextStyle(
-                  color: Colors.red.shade300,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: Colors.red.shade300, fontSize: 12),
               ),
             ),
         ],
@@ -298,7 +324,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildVisualFilterChips() {
+  Widget _buildStyleChips() {
     return Container(
       color: Colors.white,
       width: double.infinity,
@@ -307,56 +333,62 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
-          children: _styles.map((styleObj) {
-            final styleName = styleObj['name'] as String;
-            final styleIcon = styleObj['icon'] as IconData;
-            final isSelected = _selectedStyle == styleName;
+          children: _styleOptions.map((option) {
+            final isSelected = _draft.style == option.name;
 
             return Padding(
               padding: const EdgeInsets.only(right: 12),
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedStyle = styleName),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isSelected ? InkFlowColors.primary : Colors.white,
-                    borderRadius: BorderRadius.circular(30), // Mais arredondado
-                    border: Border.all(
-                        color: isSelected
-                            ? InkFlowColors.primary
-                            : Colors.grey.shade300,
-                        width: 1.5),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                                color: InkFlowColors.primary.withOpacity(0.25),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4))
-                          ]
-                        : [],
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(styleIcon,
-                          size: 18,
+              child: Semantics(
+                selected: isSelected,
+                button: true,
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _draft = _draft.copyWith(style: option.name);
+                    _showValidationError = false;
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? InkFlowColors.primary : Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
                           color: isSelected
-                              ? InkFlowColors.accent
-                              : const Color(0xFF6B7280)),
-                      const SizedBox(width: 8),
-                      Text(
-                        styleName,
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : const Color(0xFF4B5563),
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.w600,
-                          fontSize: 14,
+                              ? InkFlowColors.primary
+                              : Colors.grey.shade300,
+                          width: 1.5),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                  color: InkFlowColors.primary
+                                      .withValues(alpha: 0.25),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4))
+                            ]
+                          : const [],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(option.icon,
+                            size: 18,
+                            color: isSelected
+                                ? InkFlowColors.accent
+                                : const Color(0xFF6B7280)),
+                        const SizedBox(width: 8),
+                        Text(
+                          option.name,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF4B5563),
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w600,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -367,35 +399,35 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title, int count) {
+  Widget _buildSectionTitle(int count) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title,
-              style: const TextStyle(
+          const Text('Inspirações para você',
+              style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
                   color: InkFlowColors.primary)),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-                color: InkFlowColors.accent.withOpacity(0.15),
+                color: InkFlowColors.accent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12)),
             child: Text('$count profissionais',
                 style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: InkFlowColors.accent)),
+                    color: Color(0xFF0F766E))),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResultsGrid(List<Map<String, dynamic>> results) {
+  Widget _buildResultsGrid(List<ArtistSummary> results) {
     if (results.isEmpty) {
       return Center(
         child: Column(
@@ -416,7 +448,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             const Text('Tente remover alguns filtros ou buscar em outro local.',
-                style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14)),
+                style: TextStyle(color: Color(0xFF6B7280), fontSize: 14)),
           ],
         ),
       );
@@ -426,182 +458,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.65, // Ajustado para não cortar fotos verticalmente
+        childAspectRatio: 0.65,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
       itemCount: results.length,
-      itemBuilder: (context, index) => _buildArtistCard(results[index]),
+      itemBuilder: (context, index) => _ArtistCard(artist: results[index]),
     );
   }
 
-  Widget _buildArtistCard(Map<String, dynamic> artist) {
-    // Validações seguras para evitar quebras se o banco estiver faltando dados
-    final String name = artist['name']?.toString() ?? 'Tatuador';
-    final String city = artist['city']?.toString() ?? '';
-    final String state = artist['state']?.toString() ?? '';
-    final String location = city.isNotEmpty && state.isNotEmpty
-        ? '$city, $state'
-        : 'Local não informado';
-    final String imageUrl = artist['portfolio_url']?.toString() ??
-        ((artist['portfolio_urls'] as List?)?.isNotEmpty == true
-            ? artist['portfolio_urls'][0].toString()
-            : null) ??
-        artist['avatar_url']?.toString() ??
-        '';
-    final List<String> styles =
-        (artist['styles'] as List?)?.map((e) => e.toString()).toList() ?? [];
-    final rating = artist['rating']?.toString() ?? '5.0';
-
-    return GestureDetector(
-      onTap: () => context.go('/chat?artistId=${artist['id']}'),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 15,
-                offset: const Offset(0, 8))
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipRRect(
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(20)),
-                    child: imageUrl.isNotEmpty
-                        ? Image.network(imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _fallbackImage())
-                        : _fallbackImage(),
-                  ),
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(20)),
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.7)
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: const [0.5, 1.0],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 12,
-                    left: 12,
-                    right: 12,
-                    child: Row(
-                      children: [
-                        const Icon(Icons.location_on,
-                            size: 14, color: InkFlowColors.accent),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(location,
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                          color: InkFlowColors.primary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.star_rounded,
-                          color: Color(0xFFF59E0B), size: 14),
-                      const SizedBox(width: 4),
-                      Text(rating,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    styles.isNotEmpty
-                        ? styles.join(' • ')
-                        : 'Estilo não definido',
-                    style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _fallbackImage() {
-    return Container(
-        color: Colors.grey.shade200,
-        child: const Icon(Icons.camera_alt_outlined,
-            color: Colors.grey, size: 40));
-  }
-
-  // --- MODAL DE LOCALIZAÇÃO OTIMIZADO ---
-  void _openLocationModal(
-      List<String> availableStates, List<Map<String, dynamic>> allArtists) {
-    showModalBottomSheet(
+  void _openLocationModal(List<ArtistSummary> allArtists) {
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (sheetContext) {
+        var pendingState = _draft.state;
+        var pendingCity = _draft.city;
+
         return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            List<String> modalCities = ['Todas'];
-            if (_selectedState != 'Todos') {
-              final cities = allArtists
-                  .where((a) => a['state'] == _selectedState)
-                  .map((a) => a['city']?.toString() ?? '')
-                  .where((c) => c.isNotEmpty)
-                  .toSet()
-                  .toList();
-              cities.sort();
-              modalCities.addAll(cities);
-            }
+          builder: (context, setModalState) {
+            final states = _availableStates(allArtists);
+            final cities = _availableCities(allArtists, pendingState);
 
             return Container(
               padding: const EdgeInsets.all(24),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(32)), // Mais arredondado
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -620,9 +504,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             color: Colors.grey.shade100,
                             shape: BoxShape.circle),
                         child: IconButton(
-                            icon:
-                                const Icon(Icons.close, color: Colors.black87),
-                            onPressed: () => context.pop()),
+                          icon: const Icon(Icons.close, color: Colors.black87),
+                          tooltip: 'Fechar',
+                          onPressed: () => Navigator.pop(sheetContext),
+                        ),
                       ),
                     ],
                   ),
@@ -632,31 +517,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _selectedState,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16), // Mais alto
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                              color: InkFlowColors.accent, width: 2)),
-                    ),
-                    items: availableStates
+                    initialValue: pendingState,
+                    decoration: _modalFieldDecoration(),
+                    items: states
                         .map((state) => DropdownMenuItem(
                             value: state,
                             child: Text(
-                                state == 'Todos' ? 'Todo o Brasil' : state)))
+                                state == _allStates ? 'Todo o Brasil' : state)))
                         .toList(),
-                    onChanged: (value) {
-                      setModalState(() {
-                        _selectedState = value!;
-                        _selectedCity = 'Todas';
-                      });
-                      setState(() {});
-                    },
+                    onChanged: (value) => setModalState(() {
+                      pendingState = value ?? _allStates;
+                      pendingCity = _allCities;
+                    }),
                   ),
                   const SizedBox(height: 24),
                   const Text('Cidade',
@@ -664,43 +536,37 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _selectedCity,
-                    onChanged: _selectedState == 'Todos'
+                    initialValue: pendingCity,
+                    decoration: _modalFieldDecoration(
+                        filled: pendingState == _allStates),
+                    onChanged: pendingState == _allStates
                         ? null
-                        : (value) {
-                            setModalState(() => _selectedCity = value!);
-                            setState(() {});
-                          },
-                    decoration: InputDecoration(
-                      filled: _selectedState == 'Todos',
-                      fillColor: Colors.grey.shade100,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 16), // Mais alto
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Colors.grey.shade300)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                              color: InkFlowColors.accent, width: 2)),
-                    ),
-                    items: modalCities
+                        : (value) => setModalState(
+                            () => pendingCity = value ?? _allCities),
+                    items: cities
                         .map((city) => DropdownMenuItem(
                             value: city,
-                            child: Text(
-                                city == 'Todas' ? 'Todas as cidades' : city)))
+                            child: Text(city == _allCities
+                                ? 'Todas as cidades'
+                                : city)))
                         .toList(),
                   ),
                   const SizedBox(height: 40),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => context.pop(),
+                      onPressed: () {
+                        setState(() {
+                          _draft = _draft.copyWith(
+                              state: pendingState, city: pendingCity);
+                          _showValidationError = false;
+                        });
+                        Navigator.pop(sheetContext);
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: InkFlowColors.primary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 18), // Botão gigante e fácil de apertar
+                        padding: const EdgeInsets.symmetric(vertical: 18),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
                       ),
@@ -719,6 +585,142 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           },
         );
       },
+    );
+  }
+
+  InputDecoration _modalFieldDecoration({bool filled = false}) {
+    return InputDecoration(
+      filled: filled,
+      fillColor: Colors.grey.shade100,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.grey.shade300)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.grey.shade300)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: InkFlowColors.accent, width: 2)),
+    );
+  }
+}
+
+class _ArtistCard extends StatelessWidget {
+  final ArtistSummary artist;
+
+  const _ArtistCard({required this.artist});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/chat?contactId=${artist.id}'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 15,
+                offset: const Offset(0, 8))
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(20)),
+                    child: NetworkImageWithFallback(
+                      url: artist.coverImageUrl,
+                      fallbackIcon: Icons.camera_alt_outlined,
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(20)),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.7)
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: const [0.5, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 12,
+                    left: 12,
+                    right: 12,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_on,
+                            size: 14, color: InkFlowColors.accent),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(artist.location,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(artist.name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: InkFlowColors.primary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.star_rounded,
+                          color: InkFlowColors.warning, size: 14),
+                      const SizedBox(width: 4),
+                      Text(artist.rating.toStringAsFixed(1),
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    artist.stylesLabel,
+                    style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

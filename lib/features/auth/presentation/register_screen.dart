@@ -29,13 +29,17 @@ class CpfValidator {
     List<int> numbers = cpf.split('').map(int.parse).toList();
 
     int sum = 0;
-    for (int i = 0; i < 9; i++) sum += numbers[i] * (10 - i);
+    for (int i = 0; i < 9; i++) {
+      sum += numbers[i] * (10 - i);
+    }
     int check1 = 11 - (sum % 11);
     if (check1 >= 10) check1 = 0;
     if (check1 != numbers[9]) return false;
 
     sum = 0;
-    for (int i = 0; i < 10; i++) sum += numbers[i] * (11 - i);
+    for (int i = 0; i < 10; i++) {
+      sum += numbers[i] * (11 - i);
+    }
     int check2 = 11 - (sum % 11);
     if (check2 >= 10) check2 = 0;
     if (check2 != numbers[10]) return false;
@@ -218,7 +222,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            AppHeader(
+            const AppHeader(
                 title: 'Criar Conta', showBack: true, backTo: '/', dark: true),
             Expanded(child: _buildForm()),
           ],
@@ -240,10 +244,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.1),
+                  color: InkFlowColors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: const Color(0xFFEF4444).withOpacity(0.3)),
+                      color: InkFlowColors.error.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,8 +332,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               obscureText: true,
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Confirme sua senha';
-                if (v != _passwordController.text)
+                if (v != _passwordController.text) {
                   return 'As senhas não coincidem';
+                }
                 return null;
               },
               onSaved: (v) {},
@@ -351,7 +356,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       border: Border.all(
                         color: _terms
                             ? InkFlowColors.accent
-                            : Colors.white.withOpacity(0.3),
+                            : Colors.white.withValues(alpha: 0.3),
                         width: 2,
                       ),
                     ),
@@ -479,7 +484,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 borderSide: BorderSide(
                     color: hasError
                         ? const Color(0xFFEF4444)
-                        : InkFlowColors.accent.withOpacity(0.6),
+                        : InkFlowColors.accent.withValues(alpha: 0.6),
                     width: 1.5)),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -544,9 +549,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFEF4444).withOpacity(0.05),
+        color: InkFlowColors.error.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.2)),
+        border: Border.all(color: InkFlowColors.error.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -576,10 +581,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               errorStyle: const TextStyle(color: Color(0xFFEF4444)),
             ),
             validator: (v) {
-              if (_isUnderage && (v == null || v.isEmpty))
+              if (_isUnderage && (v == null || v.isEmpty)) {
                 return 'Obrigatório para menores';
-              if (_isUnderage && !CpfValidator.isValid(v!))
+              }
+              if (_isUnderage && !CpfValidator.isValid(v!)) {
                 return 'CPF do responsável inválido';
+              }
               return null;
             },
             onSaved: (v) => _guardianCpf = v ?? '',

@@ -20,22 +20,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   String _password = '';
   bool _isLoading = false;
 
-  void _handleLogin() async {
-    // 1. Validação de formulário ativa
+  Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
     setState(() => _isLoading = true);
 
     try {
-      // 2. Chamada real para a API do Supabase
       await ref.read(authRepositoryProvider).signIn(_email, _password);
 
-      // 3. Sucesso: Para o loading e vai para a Home
-      if (mounted) {
-        setState(() => _isLoading = false);
-        context.go('/home');
-      }
+      // A navegação fica por conta do `redirect` do router, que reage ao
+      // `onAuthStateChange`. Um `context.go('/home')` aqui competia com ele e
+      // gerava navegação dupla.
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       // 4. Tratamento de Erro Sênior
       if (mounted) {
@@ -68,6 +65,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   Future<void> _showForgotPassword() async {
     final emailController = TextEditingController(text: _email);
+    try {
+      await _askForRecoveryEmail(emailController);
+    } finally {
+      // O `dispose` ficava depois de vários `return` antecipados (cancelar,
+      // e-mail inválido, falha no envio) e vazava o controller nesses caminhos.
+      emailController.dispose();
+    }
+  }
+
+  Future<void> _askForRecoveryEmail(
+      TextEditingController emailController) async {
     final sent = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -126,7 +134,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         );
       }
     }
-    emailController.dispose();
   }
 
   @override
@@ -134,127 +141,109 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     return Scaffold(
       backgroundColor: InkFlowColors.primary,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: MediaQuery.of(context).size.height -
-                  MediaQuery.of(context).padding.top -
-                  MediaQuery.of(context).padding.bottom,
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Hero
-                  Column(
-                    children: [
-                      const SizedBox(height: 60),
-                      const InkFlowLogo(height: 80),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'A plataforma para tatuadores e clientes',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0xCCFFFFFF),
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 48),
-
-                      // Email
-                      _darkLabel('E-mail'),
-                      const SizedBox(height: 4),
-                      _darkInput(
-                        hint: 'exemplo@email.com',
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (v) {
-                          if (v == null || v.isEmpty)
-                            return 'Informe seu e-mail';
-                          if (!v.contains('@')) return 'E-mail inválido';
-                          return null;
-                        },
-                        onSaved: (v) => _email = v!.trim(),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Senha
-                      _darkLabel('Senha'),
-                      const SizedBox(height: 4),
-                      _darkInput(
-                        hint: '••••••••',
-                        obscure: true,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Informe sua senha' : null,
-                        onSaved: (v) => _password = v!,
-                      ),
-                      const SizedBox(height: 4),
-
-                      // Esqueceu senha
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _showForgotPassword,
-                          child: const Text(
-                            'Esqueceu a senha?',
-                            style: TextStyle(
-                              color: Color(0x66FFFFFF),
-                              fontSize: 12,
-                            ),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(minHeight: constraints.maxHeight - 56),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const InkFlowLogo(height: 116),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Arte, conexão e cuidado em um só lugar.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xBFFFFFFF),
+                            fontSize: 14,
+                            height: 1.4,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Entrar
-                      InkButton(
-                        label: 'Entrar',
-                        isLoading: _isLoading,
-                        onPressed: _handleLogin,
-                      ),
-                    ],
-                  ),
-
-                  // Footer
-                  Column(
-                    children: [
-                      const SizedBox(height: 32),
-                      const Row(
-                        children: [
-                          Expanded(child: Divider(color: Color(0x1AFFFFFF))),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              'ou',
+                        const SizedBox(height: 36),
+                        _darkLabel('E-mail'),
+                        const SizedBox(height: 7),
+                        _darkInput(
+                          hint: 'exemplo@email.com',
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (v) {
+                            if (v == null || v.isEmpty)
+                              return 'Informe seu e-mail';
+                            if (!v.contains('@')) return 'E-mail inválido';
+                            return null;
+                          },
+                          onSaved: (v) => _email = v!.trim(),
+                        ),
+                        const SizedBox(height: 18),
+                        _darkLabel('Senha'),
+                        const SizedBox(height: 7),
+                        _darkInput(
+                          hint: '••••••••',
+                          obscure: true,
+                          validator: (v) => v == null || v.isEmpty
+                              ? 'Informe sua senha'
+                              : null,
+                          onSaved: (v) => _password = v!,
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _showForgotPassword,
+                            child: const Text(
+                              'Esqueceu a senha?',
                               style: TextStyle(
-                                color: Color(0x4DFFFFFF),
+                                color: Color(0xB3FFFFFF),
                                 fontSize: 12,
                               ),
                             ),
                           ),
-                          Expanded(child: Divider(color: Color(0x1AFFFFFF))),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      InkButton(
-                        label: 'Criar nova conta',
-                        onPressed: () => context.go('/register'),
-                        isOutlined: true,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Ao continuar, você concorda com os Termos de Uso e Política de Privacidade da InkFlow',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Color(0x33FFFFFF),
-                          fontSize: 10,
                         ),
-                      ),
-                      const SizedBox(height: 32),
-                    ],
+                        const SizedBox(height: 8),
+                        InkButton(
+                          label: 'Entrar',
+                          isLoading: _isLoading,
+                          onDark: true,
+                          onPressed: _handleLogin,
+                        ),
+                        const SizedBox(height: 28),
+                        const Row(
+                          children: [
+                            Expanded(child: Divider(color: Color(0x26FFFFFF))),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 14),
+                              child: Text('ou',
+                                  style: TextStyle(
+                                      color: Color(0x80FFFFFF), fontSize: 12)),
+                            ),
+                            Expanded(child: Divider(color: Color(0x26FFFFFF))),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        InkButton(
+                          label: 'Criar nova conta',
+                          onPressed: () => context.go('/register'),
+                          isOutlined: true,
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Ao continuar, você concorda com os Termos de Uso e a Política de Privacidade da InkFlow.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0x66FFFFFF),
+                            fontSize: 10,
+                            height: 1.45,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -306,7 +295,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-              color: InkFlowColors.accent.withOpacity(0.6), width: 1.5),
+              color: InkFlowColors.accent.withValues(alpha: 0.6), width: 1.5),
         ),
         errorStyle: const TextStyle(color: Color(0xFFEF4444)),
         contentPadding:

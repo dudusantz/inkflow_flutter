@@ -8,7 +8,7 @@ class CareScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: InkFlowColors.background,
       appBar: AppBar(
         backgroundColor: InkFlowColors.primary,
         elevation: 0,
@@ -38,10 +38,10 @@ class CareScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: InkFlowColors.accent.withOpacity(0.1),
+                color: InkFlowColors.accent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border:
-                    Border.all(color: InkFlowColors.accent.withOpacity(0.3)),
+                border: Border.all(
+                    color: InkFlowColors.accent.withValues(alpha: 0.3)),
               ),
               child: const Row(
                 children: [

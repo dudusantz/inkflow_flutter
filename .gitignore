@@ -1,12 +1,39 @@
-# Flutter
+# Flutter / Dart
 .dart_tool/
 .packages
 .pub/
 build/
-*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+# pubspec.lock e versionado de proposito: este projeto e um app, nao um package,
+# e o lockfile garante builds reproduziveis entre maquinas e CI.
+
+# Plataformas (artefatos gerados)
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/local.properties
+android/key.properties
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/ephemeral/
+macos/Pods/
+macos/Flutter/ephemeral/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+
+# IDE
 .idea/
 .vscode/
-*.lock
+*.iml
+.cursor/
 
 # Node
 node_modules/
@@ -16,13 +43,14 @@ package-lock.json
 .DS_Store
 Thumbs.db
 
-# Env
+# Segredos
 .env
 .env.local
+.env.*.local
 
-# IDE
-.cursor/
-
-# Generated
+# Codigo gerado
 *.g.dart
 *.freezed.dart
+
+# Cobertura de testes
+coverage/
