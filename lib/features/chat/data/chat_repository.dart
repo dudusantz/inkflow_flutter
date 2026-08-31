@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -32,9 +34,12 @@ class ChatRepository {
         .stream(primaryKey: ['id'])
         .eq('conversation_key', conversationKey(myId, otherUserId))
         .order('created_at', ascending: false)
-        .map((rows) => rows
-            .map((row) => ChatMessage.fromRow(row, myId))
-            .toList(growable: false));
+        .asyncMap((rows) async {
+          final messages = rows
+              .map((row) => ChatMessage.fromRow(row, myId))
+              .toList(growable: false);
+          return Future.wait(messages.map(_signAttachment));
+        });
   }
 
   /// Ultima mensagem de cada conversa do usuario logado.
@@ -60,14 +65,21 @@ class ChatRepository {
   /// tatuadores. Devolve `null` quando o usuario nao pode ver aquele contato.
   Future<ChatContact?> fetchContact(String contactId) async {
     for (final source in const ['chat_directory', 'artist_directory']) {
-      final row = await _supabase
-          .from(source)
-          .select('id, name, avatar_url')
-          .eq('id', contactId)
-          .maybeSingle();
+      try {
+        final row = await _supabase
+            .from(source)
+            .select('id, name, avatar_url')
+            .eq('id', contactId)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 10));
 
-      if (row != null) {
-        return ChatContact.fromRow(Map<String, dynamic>.from(row));
+        if (row != null) {
+          return ChatContact.fromRow(Map<String, dynamic>.from(row));
+        }
+      } on PostgrestException catch (error) {
+        // Projetos antigos podem ainda não ter a view de contatos. Nesse caso
+        // a vitrine pública continua sendo uma fonte válida para tatuadores.
+        if (error.code != 'PGRST205' && error.code != '42P01') rethrow;
       }
     }
     return null;
@@ -89,6 +101,54 @@ class ChatRepository {
     });
   }
 
+  Future<void> sendAttachment({
+    required String receiverId,
+    required Uint8List bytes,
+    required String type,
+    required String fileName,
+    required String contentType,
+    int? durationSeconds,
+  }) async {
+    final myId = _myId;
+    if (myId == null) {
+      throw const AuthException('Sessão expirada. Entre novamente.');
+    }
+
+    final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final path =
+        '$myId/${conversationKey(myId, receiverId)}/${DateTime.now().microsecondsSinceEpoch}_$safeName';
+
+    await _supabase.storage.from('chat-media').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: contentType),
+        );
+
+    try {
+      await _supabase.from('messages').insert({
+        'sender_id': myId,
+        'receiver_id': receiverId,
+        'content': '',
+        'attachment_path': path,
+        'attachment_type': type,
+        'attachment_name': fileName,
+        'duration_seconds': durationSeconds,
+      });
+    } catch (_) {
+      await _supabase.storage.from('chat-media').remove([path]);
+      rethrow;
+    }
+  }
+
+  Future<ChatMessage> _signAttachment(ChatMessage message) async {
+    final path = message.attachmentPath;
+    if (path == null) return message;
+    final url = await _supabase.storage
+        .from('chat-media')
+        .createSignedUrl(path, 60 * 60);
+    return message.withAttachmentUrl(url);
+  }
+
   Future<List<Conversation>> _groupIntoConversations(
     List<Map<String, dynamic>> rows,
     String myId,
@@ -106,7 +166,14 @@ class ChatRepository {
         () => Conversation(
           contactId: contactId,
           contactName: 'Usuário',
-          lastMessage: message.content,
+          lastMessage: message.content.isNotEmpty
+              ? message.content
+              : switch (message.attachmentType) {
+                  'image' => '📷 Foto',
+                  'video' => '🎬 Vídeo',
+                  'audio' => '🎤 Áudio',
+                  _ => 'Anexo',
+                },
           lastMessageAt: message.createdAt,
           lastMessageIsMine: message.isMine,
         ),

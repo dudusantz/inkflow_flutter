@@ -155,7 +155,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const InkFlowLogo(height: 116),
+                        const SizedBox(
+                          width: double.infinity,
+                          height: 92,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.center,
+                            child: InkFlowLogo(height: 88),
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         const Text(
                           'Arte, conexão e cuidado em um só lugar.',
@@ -173,8 +181,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                           hint: 'exemplo@email.com',
                           keyboardType: TextInputType.emailAddress,
                           validator: (v) {
-                            if (v == null || v.isEmpty)
+                            if (v == null || v.isEmpty) {
                               return 'Informe seu e-mail';
+                            }
                             if (!v.contains('@')) return 'E-mail inválido';
                             return null;
                           },

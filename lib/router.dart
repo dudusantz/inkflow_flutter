@@ -24,6 +24,7 @@ import 'package:inkflow/features/schedule/presentation/care_screen.dart';
 import 'package:inkflow/features/schedule/presentation/favorites_screen.dart';
 import 'package:inkflow/features/schedule/presentation/reminders_screen.dart';
 import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
+import 'package:inkflow/features/search/presentation/artist_profile_screen.dart';
 import 'package:inkflow/features/search/presentation/search_screen.dart';
 
 /// Rotas acessiveis sem sessao ativa.
@@ -95,6 +96,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(
           path: '/search', builder: (context, state) => const SearchScreen()),
+      GoRoute(
+        path: '/artist/:artistId',
+        builder: (context, state) => ArtistProfileScreen(
+          artistId: state.pathParameters['artistId']!,
+        ),
+      ),
       GoRoute(path: '/inbox', builder: (context, state) => const InboxScreen()),
       GoRoute(
         path: '/chat',

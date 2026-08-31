@@ -6,6 +6,11 @@ class ChatMessage {
   final String content;
   final DateTime createdAt;
   final bool isMine;
+  final String? attachmentPath;
+  final String? attachmentUrl;
+  final String? attachmentType;
+  final String? attachmentName;
+  final int? durationSeconds;
 
   const ChatMessage({
     required this.id,
@@ -14,6 +19,11 @@ class ChatMessage {
     required this.content,
     required this.createdAt,
     required this.isMine,
+    this.attachmentPath,
+    this.attachmentUrl,
+    this.attachmentType,
+    this.attachmentName,
+    this.durationSeconds,
   });
 
   factory ChatMessage.fromRow(Map<String, dynamic> row, String currentUserId) {
@@ -27,8 +37,28 @@ class ChatMessage {
           DateTime.tryParse(row['created_at']?.toString() ?? '')?.toLocal() ??
               DateTime.now(),
       isMine: senderId == currentUserId,
+      attachmentPath: row['attachment_path']?.toString(),
+      attachmentType: row['attachment_type']?.toString(),
+      attachmentName: row['attachment_name']?.toString(),
+      durationSeconds: int.tryParse(row['duration_seconds']?.toString() ?? ''),
     );
   }
+
+  ChatMessage withAttachmentUrl(String url) => ChatMessage(
+        id: id,
+        senderId: senderId,
+        receiverId: receiverId,
+        content: content,
+        createdAt: createdAt,
+        isMine: isMine,
+        attachmentPath: attachmentPath,
+        attachmentUrl: url,
+        attachmentType: attachmentType,
+        attachmentName: attachmentName,
+        durationSeconds: durationSeconds,
+      );
+
+  bool get hasAttachment => attachmentPath != null;
 
   String get timeLabel =>
       '${createdAt.hour.toString().padLeft(2, '0')}:'

@@ -29,6 +29,18 @@ class ArtistDirectoryRepository {
     return _map(rows);
   }
 
+  Future<ArtistSummary?> findById(String artistId) async {
+    final row = await _supabase
+        .from('artist_directory')
+        .select()
+        .eq('id', artistId)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 10));
+
+    if (row == null) return null;
+    return ArtistSummary.fromRow(Map<String, dynamic>.from(row));
+  }
+
   List<ArtistSummary> _map(List<dynamic> rows) {
     return rows
         .map((row) => ArtistSummary.fromRow(Map<String, dynamic>.from(row)))

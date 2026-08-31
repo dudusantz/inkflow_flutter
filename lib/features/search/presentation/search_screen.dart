@@ -614,7 +614,7 @@ class _ArtistCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.push('/chat?contactId=${artist.id}'),
+      onTap: () => context.push('/artist/${artist.id}'),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
