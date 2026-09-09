@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1400" viewBox="0 0 1800 1400">
+  <defs>
+    <style>
+      .title{font:700 36px Arial;fill:#fff}.subtitle{font:18px Arial;fill:#cbd5e1}
+      .entity{fill:#fff;stroke:#cbd5e1;stroke-width:2}.head{fill:#111218}.headText{font:700 22px Arial;fill:#fff}
+      .field{font:16px Consolas,monospace;fill:#172033}.type{font:15px Consolas,monospace;fill:#64748b}.key{font:700 14px Arial;fill:#087f78}
+      .rel{fill:none;stroke:#087f78;stroke-width:3}.relText{font:600 15px Arial;fill:#065f59}.note{font:16px Arial;fill:#334155}.small{font:14px Arial;fill:#64748b}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#087f78"/></marker>
+  </defs>
+  <rect width="1800" height="1400" fill="#f8fafc"/>
+  <rect width="1800" height="118" fill="#111218"/>
+  <text x="70" y="55" class="title">Diagrama Entidade–Relacionamento — InkFlow</text>
+  <text x="70" y="88" class="subtitle">PostgreSQL / Supabase · schema versionado pelas migrations 001–004</text>
+
+  <!-- auth.users -->
+  <g transform="translate(620 155)">
+    <rect class="entity" width="560" height="220" rx="14"/>
+    <path class="head" d="M14 0H546Q560 0 560 14V58H0V14Q0 0 14 0Z"/>
+    <text x="24" y="37" class="headText">auth.users</text><text x="438" y="36" class="subtitle">Supabase Auth</text>
+    <text x="24" y="92" class="field">id</text><text x="340" y="92" class="type">uuid</text><text x="485" y="92" class="key">PK</text>
+    <text x="24" y="126" class="field">email</text><text x="340" y="126" class="type">text</text><text x="485" y="126" class="key">UK</text>
+    <text x="24" y="160" class="field">raw_user_meta_data</text><text x="340" y="160" class="type">jsonb</text>
+    <text x="24" y="194" class="field">created_at</text><text x="340" y="194" class="type">timestamptz</text>
+  </g>
+
+  <!-- profiles -->
+  <g transform="translate(70 485)">
+    <rect class="entity" width="540" height="430" rx="14"/>
+    <path class="head" d="M14 0H526Q540 0 540 14V58H0V14Q0 0 14 0Z"/>
+    <text x="24" y="37" class="headText">public.profiles</text>
+    <text x="24" y="91" class="field">id</text><text x="330" y="91" class="type">uuid</text><text x="450" y="91" class="key">PK / FK</text>
+    <text x="24" y="125" class="field">name · role · phone</text><text x="330" y="125" class="type">text</text>
+    <text x="24" y="159" class="field">cpf</text><text x="330" y="159" class="type">text</text><text x="470" y="159" class="key">UK</text>
+    <text x="24" y="193" class="field">date_of_birth</text><text x="330" y="193" class="type">date</text>
+    <text x="24" y="227" class="field">guardian_cpf</text><text x="330" y="227" class="type">text</text>
+    <text x="24" y="261" class="field">avatar_url · city · state</text><text x="330" y="261" class="type">text</text>
+    <text x="24" y="295" class="field">styles</text><text x="330" y="295" class="type">text[]</text>
+    <text x="24" y="329" class="field">rating · min_price</text><text x="330" y="329" class="type">numeric</text>
+    <text x="24" y="363" class="field">hourly_rate</text><text x="330" y="363" class="type">numeric</text>
+    <text x="24" y="397" class="field">portfolio_urls · portfolio_url</text><text x="400" y="397" class="type">text[] / text</text>
+  </g>
+
+  <!-- messages -->
+  <g transform="translate(1190 430)">
+    <rect class="entity" width="540" height="430" rx="14"/>
+    <path class="head" d="M14 0H526Q540 0 540 14V58H0V14Q0 0 14 0Z"/>
+    <text x="24" y="37" class="headText">public.messages</text>
+    <text x="24" y="91" class="field">id</text><text x="325" y="91" class="type">uuid</text><text x="465" y="91" class="key">PK</text>
+    <text x="24" y="125" class="field">sender_id</text><text x="325" y="125" class="type">uuid</text><text x="465" y="125" class="key">FK</text>
+    <text x="24" y="159" class="field">receiver_id</text><text x="325" y="159" class="type">uuid</text><text x="465" y="159" class="key">FK</text>
+    <text x="24" y="193" class="field">conversation_key</text><text x="325" y="193" class="type">text gerada</text>
+    <text x="24" y="227" class="field">content</text><text x="325" y="227" class="type">text?</text>
+    <text x="24" y="261" class="field">attachment_path</text><text x="325" y="261" class="type">text?</text>
+    <text x="24" y="295" class="field">attachment_type</text><text x="325" y="295" class="type">text?</text>
+    <text x="24" y="329" class="field">attachment_name</text><text x="325" y="329" class="type">text?</text>
+    <text x="24" y="363" class="field">duration_seconds</text><text x="325" y="363" class="type">int?</text>
+    <text x="24" y="397" class="field">created_at</text><text x="325" y="397" class="type">timestamptz</text>
+  </g>
+
+  <!-- appointments -->
+  <g transform="translate(620 780)">
+    <rect class="entity" width="560" height="470" rx="14"/>
+    <path class="head" d="M14 0H546Q560 0 560 14V58H0V14Q0 0 14 0Z"/>
+    <text x="24" y="37" class="headText">public.appointments</text>
+    <text x="24" y="91" class="field">id</text><text x="350" y="91" class="type">uuid</text><text x="495" y="91" class="key">PK</text>
+    <text x="24" y="125" class="field">artist_id</text><text x="350" y="125" class="type">uuid</text><text x="495" y="125" class="key">FK</text>
+    <text x="24" y="159" class="field">client_id</text><text x="350" y="159" class="type">uuid?</text><text x="495" y="159" class="key">FK</text>
+    <text x="24" y="193" class="field">client_name</text><text x="350" y="193" class="type">text</text>
+    <text x="24" y="227" class="field">date</text><text x="350" y="227" class="type">date</text>
+    <text x="24" y="261" class="field">time · end_time</text><text x="350" y="261" class="type">time</text>
+    <text x="24" y="295" class="field">style · status</text><text x="350" y="295" class="type">text</text>
+    <text x="24" y="329" class="field">price</text><text x="350" y="329" class="type">numeric</text>
+    <text x="24" y="363" class="field">anamnesis_status</text><text x="350" y="363" class="type">text</text>
+    <text x="24" y="397" class="field">reminder_enabled</text><text x="350" y="397" class="type">boolean</text>
+    <text x="24" y="431" class="field">created_at</text><text x="350" y="431" class="type">timestamptz</text>
+  </g>
+
+  <!-- storage -->
+  <g transform="translate(1230 960)">
+    <rect class="entity" width="500" height="260" rx="14"/>
+    <path class="head" d="M14 0H486Q500 0 500 14V58H0V14Q0 0 14 0Z"/>
+    <text x="24" y="37" class="headText">storage.objects</text>
+    <text x="24" y="91" class="field">id</text><text x="300" y="91" class="type">uuid</text><text x="430" y="91" class="key">PK</text>
+    <text x="24" y="125" class="field">bucket_id</text><text x="300" y="125" class="type">text</text><text x="430" y="125" class="key">FK</text>
+    <text x="24" y="159" class="field">name</text><text x="300" y="159" class="type">text</text>
+    <text x="24" y="193" class="field">metadata</text><text x="300" y="193" class="type">jsonb</text>
+    <text x="24" y="227" class="field">created_at</text><text x="300" y="227" class="type">timestamptz</text>
+  </g>
+
+  <!-- relationships -->
+  <path class="rel" marker-end="url(#arrow)" d="M760 375 C650 420 520 430 430 485"/><text x="545" y="420" class="relText">1 possui 1</text>
+  <path class="rel" marker-end="url(#arrow)" d="M1050 375 C1170 395 1260 405 1340 430"/><text x="1140" y="405" class="relText">1 envia/recebe N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M900 375 L900 780"/><text x="915" y="590" class="relText">1 participa de N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M1460 860 L1460 960"/><text x="1475" y="915" class="relText">0..1 anexo</text>
+  <path class="rel" marker-end="url(#arrow)" d="M610 760 C900 710 1110 980 1230 1060" stroke-dasharray="8 7"/><text x="760" y="760" class="relText">1 publica N arquivos</text>
+
+  <!-- views -->
+  <rect x="70" y="990" width="480" height="215" rx="14" fill="#ecfeff" stroke="#99f6e4" stroke-width="2"/>
+  <text x="94" y="1030" class="headText" style="fill:#065f59">Views de leitura</text>
+  <text x="94" y="1070" class="note">artist_directory</text><text x="94" y="1097" class="small">Dados públicos de perfis ARTIST.</text>
+  <text x="94" y="1140" class="note">chat_directory</text><text x="94" y="1167" class="small">Nome e avatar de contatos com histórico.</text>
+
+  <text x="70" y="1335" class="small">Fonte: supabase/migrations/001–004 e modelos Dart · PK = chave primária · FK = chave estrangeira · UK = chave única · ? = opcional</text>
+</svg>

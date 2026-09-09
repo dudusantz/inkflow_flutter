@@ -58,6 +58,28 @@ class ChatRepository {
         .asyncMap((rows) => _groupIntoConversations(rows, myId));
   }
 
+  /// Carga inicial determinística da caixa de entrada.
+  ///
+  /// O canal Realtime pode demorar para emitir o primeiro snapshot em alguns
+  /// navegadores. Esta consulta REST evita que a tela permaneça carregando
+  /// indefinidamente antes de mostrar as conversas existentes.
+  Future<List<Conversation>> fetchInbox() async {
+    final myId = _myId;
+    if (myId == null) return const [];
+
+    final rows = await _supabase
+        .from('messages')
+        .select()
+        .order('created_at', ascending: false)
+        .timeout(const Duration(seconds: 10));
+
+    return _groupIntoConversations(
+      List<Map<String, dynamic>>.from(rows),
+      myId,
+      resolveContacts: true,
+    );
+  }
+
   /// Nome e avatar do interlocutor.
   ///
   /// Procura primeiro entre os contatos com historico (`chat_directory`) e,
@@ -151,8 +173,9 @@ class ChatRepository {
 
   Future<List<Conversation>> _groupIntoConversations(
     List<Map<String, dynamic>> rows,
-    String myId,
-  ) async {
+    String myId, {
+    bool resolveContacts = true,
+  }) async {
     final byContact = <String, Conversation>{};
 
     for (final row in rows) {
@@ -182,20 +205,28 @@ class ChatRepository {
 
     if (byContact.isEmpty) return const [];
 
-    final contacts = await _supabase
-        .from('chat_directory')
-        .select('id, name, avatar_url')
-        .inFilter('id', byContact.keys.toList());
+    if (resolveContacts) {
+      try {
+        final contacts = await _supabase
+            .from('chat_directory')
+            .select('id, name, avatar_url')
+            .inFilter('id', byContact.keys.toList())
+            .timeout(const Duration(seconds: 6));
 
-    for (final contact in contacts) {
-      final id = contact['id'].toString();
-      final existing = byContact[id];
-      if (existing == null) continue;
+        for (final contact in contacts) {
+          final id = contact['id'].toString();
+          final existing = byContact[id];
+          if (existing == null) continue;
 
-      byContact[id] = existing.copyWith(
-        contactName: contact['name']?.toString(),
-        contactAvatarUrl: contact['avatar_url']?.toString(),
-      );
+          byContact[id] = existing.copyWith(
+            contactName: contact['name']?.toString(),
+            contactAvatarUrl: contact['avatar_url']?.toString(),
+          );
+        }
+      } catch (_) {
+        // Nome e avatar são complementares. Uma falha na view de contatos não
+        // pode impedir que as conversas já carregadas sejam exibidas.
+      }
     }
 
     return byContact.values.toList()

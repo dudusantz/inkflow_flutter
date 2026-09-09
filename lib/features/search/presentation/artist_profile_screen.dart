@@ -160,6 +160,60 @@ class _ArtistProfileContent extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
+                if (artist.bio != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: InkFlowColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _SectionTitle('Sobre o profissional'),
+                        const SizedBox(height: 10),
+                        Text(artist.bio!,
+                            style: const TextStyle(
+                                color: InkFlowColors.textMuted,
+                                fontSize: 13,
+                                height: 1.5)),
+                        if (artist.experienceYears > 0 ||
+                            artist.studioName != null ||
+                            artist.instagram != null) ...[
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 8,
+                            children: [
+                              if (artist.experienceYears > 0)
+                                _InfoPill(
+                                  icon: Icons.history_rounded,
+                                  label:
+                                      '${artist.experienceYears} ${artist.experienceYears == 1 ? 'ano' : 'anos'} de experiência',
+                                  color: InkFlowColors.accentDark,
+                                ),
+                              if (artist.studioName != null)
+                                _InfoPill(
+                                  icon: Icons.storefront_outlined,
+                                  label: artist.studioName!,
+                                  color: InkFlowColors.accentDark,
+                                ),
+                              if (artist.instagram != null)
+                                _InfoPill(
+                                  icon: Icons.alternate_email_rounded,
+                                  label: artist.instagram!,
+                                  color: InkFlowColors.accentDark,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(18),

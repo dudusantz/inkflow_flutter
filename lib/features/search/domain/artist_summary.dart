@@ -11,6 +11,10 @@ class ArtistSummary {
   final String? state;
   final double rating;
   final List<String> portfolioUrls;
+  final String? bio;
+  final int experienceYears;
+  final String? studioName;
+  final String? instagram;
 
   const ArtistSummary({
     required this.id,
@@ -21,6 +25,10 @@ class ArtistSummary {
     this.avatarUrl,
     this.city,
     this.state,
+    this.bio,
+    this.experienceYears = 0,
+    this.studioName,
+    this.instagram,
   });
 
   factory ArtistSummary.fromRow(Map<String, dynamic> row) {
@@ -39,6 +47,10 @@ class ArtistSummary {
       state: _nonEmpty(row['state']),
       rating: double.tryParse(row['rating']?.toString() ?? '') ?? 5.0,
       portfolioUrls: portfolio,
+      bio: _nonEmpty(row['bio']),
+      experienceYears: _experienceYears(row),
+      studioName: _nonEmpty(row['studio_name']),
+      instagram: _nonEmpty(row['instagram']),
     );
   }
 
@@ -66,5 +78,13 @@ class ArtistSummary {
     if (value == null) return null;
     final text = value.toString().trim();
     return text.isEmpty ? null : text;
+  }
+
+  static int _experienceYears(Map<String, dynamic> row) {
+    final startYear = int.tryParse(row['career_start_year']?.toString() ?? '');
+    if (startYear != null && startYear <= DateTime.now().year) {
+      return DateTime.now().year - startYear;
+    }
+    return int.tryParse(row['experience_years']?.toString() ?? '') ?? 0;
   }
 }

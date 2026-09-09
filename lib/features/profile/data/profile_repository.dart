@@ -93,6 +93,12 @@ class ProfileRepository {
     required double minPrice,
     required double hourlyRate,
     required List<String> portfolioUrls,
+    required String bio,
+    required int careerStartYear,
+    required String city,
+    required String state,
+    String? studioName,
+    String? instagram,
   }) async {
     final user = _requireUser();
 
@@ -103,6 +109,14 @@ class ProfileRepository {
       'hourly_rate': hourlyRate,
       'portfolio_urls': portfolioUrls,
       'portfolio_url': portfolioUrls.isEmpty ? null : portfolioUrls.first,
+      'bio': bio.trim(),
+      'career_start_year': careerStartYear,
+      // Mantido para compatibilidade com versões anteriores do app.
+      'experience_years': DateTime.now().year - careerStartYear,
+      'city': city.trim(),
+      'state': state.trim().toUpperCase(),
+      'studio_name': studioName?.trim().isEmpty == true ? null : studioName?.trim(),
+      'instagram': instagram?.trim().isEmpty == true ? null : instagram?.trim(),
     }).eq('id', user.id);
   }
 

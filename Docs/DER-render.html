@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DER InkFlow</title>
+  <style>
+    html, body { margin: 0; background: #ffffff; }
+    body { padding: 32px; font-family: Arial, sans-serif; }
+    h1 { margin: 0 0 8px; color: #111218; font-size: 30px; }
+    p { margin: 0 0 24px; color: #64748b; font-size: 16px; }
+    .mermaid { display: flex; justify-content: center; }
+    .mermaid svg { width: 100%; height: auto; max-width: none !important; }
+  </style>
+</head>
+<body>
+  <h1>Diagrama Entidade–Relacionamento — InkFlow</h1>
+  <p>PostgreSQL / Supabase · schema versionado pelas migrations 001–004</p>
+  <pre class="mermaid">
+erDiagram
+    AUTH_USERS ||--|| PROFILES : "possui"
+    AUTH_USERS ||--o{ MESSAGES : "envia"
+    AUTH_USERS ||--o{ MESSAGES : "recebe"
+    AUTH_USERS ||--o{ APPOINTMENTS : "atua como tatuador"
+    AUTH_USERS o|--o{ APPOINTMENTS : "participa como cliente"
+    MESSAGES o|--o| STORAGE_OBJECTS : "referencia anexo"
+    PROFILES ||--o{ STORAGE_OBJECTS : "publica portfolio"
+
+    AUTH_USERS {
+        uuid id PK
+        text email UK
+        jsonb raw_user_meta_data
+        timestamptz created_at
+    }
+
+    PROFILES {
+        uuid id PK,FK
+        text name
+        text role
+        text phone
+        text cpf UK
+        date date_of_birth
+        text guardian_cpf
+        text avatar_url
+        text_array styles
+        text city
+        text state
+        numeric rating
+        numeric min_price
+        numeric hourly_rate
+        text_array portfolio_urls
+        text portfolio_url
+    }
+
+    MESSAGES {
+        uuid id PK
+        uuid sender_id FK
+        uuid receiver_id FK
+        text conversation_key "gerada"
+        text content "opcional com anexo"
+        text attachment_path
+        text attachment_type
+        text attachment_name
+        int duration_seconds
+        timestamptz created_at
+    }
+
+    APPOINTMENTS {
+        uuid id PK
+        uuid artist_id FK
+        uuid client_id FK "opcional"
+        text client_name
+        date date
+        time time
+        time end_time
+        text style
+        numeric price
+        text status
+        text anamnesis_status
+        boolean reminder_enabled
+        timestamptz created_at
+    }
+
+    STORAGE_OBJECTS {
+        uuid id PK
+        text bucket_id FK
+        text name "caminho do arquivo"
+        text metadata
+        timestamptz created_at
+    }
+  </pre>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "base",
+      securityLevel: "strict",
+      er: { useMaxWidth: false },
+      themeVariables: {
+        primaryColor: "#ffffff",
+        primaryTextColor: "#111827",
+        primaryBorderColor: "#0f8f87",
+        lineColor: "#0f8f87",
+        tertiaryColor: "#f8fafc",
+        fontFamily: "Arial"
+      }
+    });
+  </script>
+</body>
+</html>
