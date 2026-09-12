@@ -11,6 +11,8 @@ import 'package:inkflow/features/auth/presentation/splash_screen.dart';
 import 'package:inkflow/features/chat/presentation/chat_screen.dart';
 import 'package:inkflow/features/chat/presentation/inbox_screen.dart';
 import 'package:inkflow/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:inkflow/features/finance/presentation/fiscal_settings_screen.dart';
+import 'package:inkflow/features/finance/presentation/studio_management_screen.dart';
 import 'package:inkflow/features/home/presentation/artist_home_screen.dart';
 import 'package:inkflow/features/home/presentation/home_screen.dart';
 import 'package:inkflow/features/profile/presentation/change_password_screen.dart';
@@ -48,7 +50,8 @@ String? authRedirect({
 ///
 /// Aceita `artistId` como alias legado dos links gerados pela busca.
 String? chatContactIdOf(Uri uri) {
-  final id = uri.queryParameters['contactId'] ?? uri.queryParameters['artistId'];
+  final id =
+      uri.queryParameters['contactId'] ?? uri.queryParameters['artistId'];
   return (id == null || id.trim().isEmpty) ? null : id.trim();
 }
 
@@ -126,6 +129,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/dashboard',
           builder: (context, state) => const DashboardScreen()),
+      GoRoute(
+          path: '/studio-management',
+          builder: (context, state) => const StudioManagementScreen()),
+      GoRoute(
+          path: '/fiscal-settings',
+          builder: (context, state) => const FiscalSettingsScreen()),
       GoRoute(
           path: '/profile', builder: (context, state) => const ProfileScreen()),
       GoRoute(

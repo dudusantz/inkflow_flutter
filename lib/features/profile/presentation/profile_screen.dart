@@ -306,10 +306,10 @@ class ProfileScreen extends ConsumerWidget {
               ),
               _buildDashboardAction(
                 context,
-                icon: Icons.bar_chart_outlined,
-                title: 'Dashboard Financeiro',
-                subtitle: 'Acompanhe seus resultados',
-                route: '/dashboard',
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Gestão do Estúdio',
+                subtitle: 'Financeiro, fiscal e relatórios',
+                route: '/studio-management',
               ),
               _buildDashboardAction(
                 context,
