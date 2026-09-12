@@ -12,7 +12,9 @@ import 'package:inkflow/features/schedule/domain/appointment.dart';
 
 final scheduleProvider = FutureProvider.autoDispose<List<Appointment>>((ref) {
   final isArtist = ref.watch(isArtistProvider);
-  return ref.watch(appointmentRepositoryProvider).listForUser(asArtist: isArtist);
+  return ref
+      .watch(appointmentRepositoryProvider)
+      .listForUser(asArtist: isArtist);
 });
 
 class ScheduleScreen extends ConsumerStatefulWidget {
@@ -24,10 +26,12 @@ class ScheduleScreen extends ConsumerStatefulWidget {
 
 class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   static const _weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  static const _initialWeekPage = 1000;
 
   final _formKey = GlobalKey<FormState>();
   final _clientController = TextEditingController();
   final _styleController = TextEditingController();
+  late final PageController _weekController;
 
   bool _showNewForm = false;
   bool _isSaving = false;
@@ -38,22 +42,46 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   TimeOfDay? _endTime;
 
   @override
+  void initState() {
+    super.initState();
+    _weekController = PageController(initialPage: _initialWeekPage);
+  }
+
+  @override
   void dispose() {
     _clientController.dispose();
     _styleController.dispose();
+    _weekController.dispose();
     super.dispose();
   }
 
-  List<DateTime> _currentWeek() {
+  DateTime get _today {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final daysSinceSunday = today.weekday == 7 ? 0 : today.weekday;
-    final sunday = today.subtract(Duration(days: daysSinceSunday));
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  List<DateTime> _weekForPage(int page) {
+    final daysSinceSunday = _today.weekday == 7 ? 0 : _today.weekday;
+    final currentSunday = _today.subtract(Duration(days: daysSinceSunday));
+    final sunday = currentSunday.add(
+      Duration(days: (page - _initialWeekPage) * 7),
+    );
     return List.generate(7, (i) => sunday.add(Duration(days: i)));
   }
 
-  String _format(TimeOfDay time) =>
-      '${time.hour.toString().padLeft(2, '0')}:'
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  void _goToToday() {
+    setState(() => _selectedDate = _today);
+    _weekController.animateToPage(
+      _initialWeekPage,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  String _format(TimeOfDay time) => '${time.hour.toString().padLeft(2, '0')}:'
       '${time.minute.toString().padLeft(2, '0')}';
 
   Future<void> _pickTime({required bool isStart}) async {
@@ -255,13 +283,13 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   Widget build(BuildContext context) {
     final isArtist = ref.watch(isArtistProvider);
     final scheduleAsync = ref.watch(scheduleProvider);
-    final weekDates = _currentWeek();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F5),
       body: Column(
         children: [
           const AppHeader(title: 'Agenda'),
-          _buildWeekSelector(weekDates),
+          _buildCalendar(),
           Expanded(
             child: scheduleAsync.when(
               loading: () => const Center(
@@ -273,18 +301,16 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                 onRetry: () => ref.invalidate(scheduleProvider),
               ),
               data: (allSessions) {
-                final daySessions = allSessions
-                    .where((s) => s.isOn(_selectedDate))
-                    .toList();
+                final daySessions =
+                    allSessions.where((s) => s.isOn(_selectedDate)).toList();
 
                 if (daySessions.isEmpty) {
-                  return Center(
-                    child: Text(
-                      isArtist
-                          ? 'Sua agenda está livre neste dia.'
-                          : 'Você não possui sessões neste dia.',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
+                  return _EmptySchedule(
+                    date: _selectedDate,
+                    isArtist: isArtist,
+                    onCreate: isArtist
+                        ? () => setState(() => _showNewForm = true)
+                        : null,
                   );
                 }
 
@@ -321,45 +347,105 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     );
   }
 
-  Widget _buildWeekSelector(List<DateTime> weekDates) {
+  Widget _buildCalendar() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       color: Colors.white,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(7, (i) {
-          final date = weekDates[i];
-          final isSelected = date.year == _selectedDate.year &&
-              date.month == _selectedDate.month &&
-              date.day == _selectedDate.day;
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormat('MMMM yyyy', 'pt_BR').format(_selectedDate),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: InkFlowColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Arraste para navegar entre as semanas',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF8A8F98)),
+                    ),
+                  ],
+                ),
+              ),
+              if (!_isSameDay(_selectedDate, _today))
+                TextButton.icon(
+                  onPressed: _goToToday,
+                  icon: const Icon(Icons.today_outlined, size: 17),
+                  label: const Text('Hoje'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF167D7B),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 66,
+            child: PageView.builder(
+              controller: _weekController,
+              onPageChanged: (page) {
+                final week = _weekForPage(page);
+                final selectedIndex =
+                    _selectedDate.weekday == 7 ? 0 : _selectedDate.weekday;
+                setState(() => _selectedDate = week[selectedIndex]);
+              },
+              itemBuilder: (context, page) => _buildWeekSelector(
+                _weekForPage(page),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-          return Semantics(
+  Widget _buildWeekSelector(List<DateTime> weekDates) {
+    return Row(
+      children: List.generate(7, (i) {
+        final date = weekDates[i];
+        final isSelected = _isSameDay(date, _selectedDate);
+        final isToday = _isSameDay(date, _today);
+
+        return Expanded(
+          child: Semantics(
             selected: isSelected,
             button: true,
             label: DateFormat('EEEE, d/MM', 'pt_BR').format(date),
             child: ExcludeSemantics(
-              child: GestureDetector(
+              child: InkWell(
                 onTap: () => setState(() => _selectedDate = date),
+                borderRadius: BorderRadius.circular(16),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? InkFlowColors.primary
-                        : Colors.transparent,
+                        : const Color(0xFFF7F8F8),
                     borderRadius: BorderRadius.circular(16),
+                    border: isToday && !isSelected
+                        ? Border.all(color: InkFlowColors.accent)
+                        : null,
                   ),
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         _weekDays[i],
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           color: isSelected
                               ? Colors.white70
-                              : Colors.grey.shade500,
+                              : const Color(0xFF8A8F98),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -368,10 +454,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                         '${date.day}',
                         style: TextStyle(
                           fontSize: 16,
-                          color: isSelected
-                              ? Colors.white
-                              : InkFlowColors.primary,
-                          fontWeight: FontWeight.bold,
+                          color:
+                              isSelected ? Colors.white : InkFlowColors.primary,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ],
@@ -379,9 +464,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                 ),
               ),
             ),
-          );
-        }),
-      ),
+          ),
+        );
+      }),
     );
   }
 
@@ -477,8 +562,87 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       filled: true,
       fillColor: Colors.grey.shade50,
       border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none),
+          borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+    );
+  }
+}
+
+class _EmptySchedule extends StatelessWidget {
+  final DateTime date;
+  final bool isArtist;
+  final VoidCallback? onCreate;
+
+  const _EmptySchedule({
+    required this.date,
+    required this.isArtist,
+    required this.onCreate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isToday = DateUtils.isSameDay(date, DateTime.now());
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 82,
+              height: 82,
+              decoration: BoxDecoration(
+                color: InkFlowColors.accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.event_available_outlined,
+                size: 38,
+                color: Color(0xFF278B88),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              isArtist ? 'Horário livre' : 'Nenhuma sessão',
+              style: const TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                color: InkFlowColors.primary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isToday
+                  ? 'Não há compromissos para hoje.'
+                  : 'Não há compromissos em ${DateFormat('d \'de\' MMMM', 'pt_BR').format(date)}.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF7B818B),
+              ),
+            ),
+            if (onCreate != null) ...[
+              const SizedBox(height: 22),
+              OutlinedButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add_rounded, size: 19),
+                label: const Text('Criar agendamento'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF167D7B),
+                  side: const BorderSide(color: InkFlowColors.accent),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -558,8 +722,7 @@ class _SessionTile extends StatelessWidget {
                     : Colors.grey,
                 size: 20,
               )
-            : const Icon(Icons.arrow_forward_ios,
-                size: 14, color: Colors.grey),
+            : const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
       ),
     );
   }

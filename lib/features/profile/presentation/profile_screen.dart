@@ -41,11 +41,11 @@ class ProfileScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: InkFlowColors.primary,
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         title: const Text(
           'Meu Perfil',
           style: TextStyle(
-              color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700),
         ),
       ),
       body: profileAsync.when(
@@ -78,20 +78,20 @@ class ProfileScreen extends ConsumerWidget {
     UserProfile profile,
   ) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(profile),
-          const SizedBox(height: 32),
+          _buildHeader(context, profile),
+          const SizedBox(height: 18),
           if (profile.isArtist)
             _buildArtistDashboard(context)
           else
             _buildActivationCard(context),
-          const SizedBox(height: 32),
-          const _SectionLabel('Configurações da Conta'),
+          const SizedBox(height: 28),
+          const _SectionLabel('Sua conta'),
           const SizedBox(height: 12),
-          _buildListTile(Icons.person_outline, 'Editar Dados Pessoais',
+          _buildListTile(Icons.person_outline, 'Dados pessoais',
               onTap: () => context.push('/edit-profile')),
           _buildListTile(Icons.lock_outline, 'Alterar Senha',
               onTap: () => context.push('/change-password')),
@@ -132,44 +132,143 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeader(UserProfile profile) {
-    return Column(
-      children: [
-        Center(child: AvatarImage(url: profile.avatarUrl, size: 100)),
-        const SizedBox(height: 16),
-        Text(
-          profile.name,
-          style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937)),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: profile.isArtist
-                ? InkFlowColors.accent.withValues(alpha: 0.15)
-                : const Color(0xFFE5E7EB),
-            borderRadius: BorderRadius.circular(20),
+  Widget _buildHeader(BuildContext context, UserProfile profile) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE7E9ED)),
+        boxShadow: [
+          BoxShadow(
+            color: InkFlowColors.primary.withValues(alpha: 0.07),
+            blurRadius: 22,
+            offset: const Offset(0, 8),
           ),
-          child: Text(
-            profile.isArtist ? 'Tatuador' : 'Cliente',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: profile.isArtist
-                  ? InkFlowColors.primary
-                  : const Color(0xFF6B7280),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+            child: Row(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AvatarImage(url: profile.avatarUrl, size: 78),
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: InkFlowColors.accent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                        ),
+                        child: const Icon(Icons.check,
+                            color: Colors.white, size: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        profile.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          height: 1.15,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF172033),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: profile.isArtist
+                              ? InkFlowColors.accent.withValues(alpha: 0.16)
+                              : const Color(0xFFF0F2F5),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          profile.isArtist
+                              ? 'Perfil profissional'
+                              : 'Conta de cliente',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: profile.isArtist
+                                ? const Color(0xFF087F7A)
+                                : const Color(0xFF667085),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        profile.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12, color: Color(0xFF788293)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          profile.email,
-          style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-        ),
-      ],
+          const Divider(height: 1, color: Color(0xFFEEF0F3)),
+          InkWell(
+            onTap: () => context.push('/edit-profile'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: InkFlowColors.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.edit_outlined,
+                        color: Color(0xFF167D7B), size: 17),
+                  ),
+                  const SizedBox(width: 11),
+                  const Expanded(
+                    child: Text(
+                      'Editar perfil',
+                      style: TextStyle(
+                        color: Color(0xFF263244),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'Atualizar dados',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF9299A5)),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: Color(0xFFA4ABB5), size: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -230,12 +329,16 @@ class ProfileScreen extends ConsumerWidget {
   Widget _buildActivationCard(BuildContext context) {
     return InkWell(
       onTap: () => context.push('/profile-setup'),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(22),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF1F2937),
-          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF111218), Color(0xFF26333B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(22),
           boxShadow: [
             BoxShadow(
                 color: const Color(0xFF1F2937).withValues(alpha: 0.2),
@@ -250,26 +353,31 @@ class ProfileScreen extends ConsumerWidget {
               decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.1),
                   shape: BoxShape.circle),
-              child: const Icon(Icons.brush, color: Colors.white),
+              child:
+                  const Icon(Icons.brush_rounded, color: InkFlowColors.accent),
             ),
             const SizedBox(width: 16),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Você é Tatuador?',
+                  Text('Transforme arte em oportunidades',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold)),
                   SizedBox(height: 4),
                   Text(
-                      'Ative seu perfil profissional, adicione seu portfólio e receba clientes.',
-                      style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 12)),
+                      'Crie seu perfil de tatuador, publique seu portfólio e receba novos clientes.',
+                      style: TextStyle(
+                          color: Color(0xFFC5CBD3),
+                          fontSize: 12,
+                          height: 1.35)),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+            const Icon(Icons.arrow_forward_rounded,
+                color: InkFlowColors.accent, size: 22),
           ],
         ),
       ),
@@ -332,23 +440,37 @@ class ProfileScreen extends ConsumerWidget {
 
   Widget _buildListTile(IconData icon, String title,
       {required VoidCallback onTap}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE5E7EB))),
-      child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF4B5563)),
-        title: Text(title,
-            style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF1F2937))),
-        trailing:
-            const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF), size: 20),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        onTap: onTap,
+    return Material(
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListTile(
+          minTileHeight: 60,
+          leading: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: InkFlowColors.accent.withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: const Color(0xFF1E6F70), size: 20),
+          ),
+          title: Text(title,
+              style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF1F2937))),
+          trailing: const Icon(Icons.chevron_right,
+              color: Color(0xFF9CA3AF), size: 20),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          onTap: onTap,
+        ),
       ),
     );
   }
@@ -364,7 +486,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
+      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color),
     );
   }
 }
