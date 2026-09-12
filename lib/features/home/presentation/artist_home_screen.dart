@@ -194,7 +194,7 @@ class ArtistHomeScreen extends ConsumerWidget {
                       topRight: Radius.circular(28)),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 36),
+                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 48),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -207,28 +207,28 @@ class ArtistHomeScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      SizedBox(
-                        height: 92,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          children: [
-                            _buildQuickAction(Icons.calendar_month_outlined,
-                                'Agenda', () => context.go('/schedule')),
-                            _buildQuickAction(Icons.chat_bubble_outline_rounded,
-                                'Conversas', () => context.go('/inbox')),
-                            _buildQuickAction(
-                                Icons.notifications_active_outlined,
-                                'Lembretes',
-                                () => context.go('/reminders')),
-                            _buildQuickAction(
-                                Icons.account_balance_wallet_outlined,
-                                'Gestão',
-                                () => context.go('/studio-management')),
-                            _buildQuickAction(Icons.search_rounded, 'Buscar',
-                                () => context.go('/search')),
-                          ],
-                        ),
+                      _buildManagementAction(
+                        context,
+                        onTap: () => context.go('/studio-management'),
+                      ),
+                      const SizedBox(height: 10),
+                      GridView.count(
+                        crossAxisCount: 2,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 2.55,
+                        children: [
+                          _buildQuickAction(Icons.calendar_month_outlined,
+                              'Agenda', () => context.go('/schedule')),
+                          _buildQuickAction(Icons.chat_bubble_outline_rounded,
+                              'Conversas', () => context.go('/inbox')),
+                          _buildQuickAction(Icons.notifications_active_outlined,
+                              'Lembretes', () => context.go('/reminders')),
+                          _buildQuickAction(Icons.search_rounded, 'Buscar',
+                              () => context.go('/search')),
+                        ],
                       ),
                       const SizedBox(height: 26),
                       Row(
@@ -372,35 +372,108 @@ class ArtistHomeScreen extends ConsumerWidget {
   }
 
   Widget _buildQuickAction(IconData icon, String label, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 10),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(17),
-          child: Container(
-            width: 88,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFE8EAED)),
-              borderRadius: BorderRadius.circular(17),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE6E9ED)),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: InkFlowColors.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, color: const Color(0xFF167D7B), size: 19),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF303A4A),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManagementAction(
+    BuildContext context, {
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF183638), Color(0xFF25494A)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: const Color(0xFF267F7D), size: 24),
-                const SizedBox(height: 7),
-                Text(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Color(0xFF4C5667),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: InkFlowColors.accent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.account_balance_wallet_outlined,
+                    color: InkFlowColors.accent, size: 23),
+              ),
+              const SizedBox(width: 13),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Gestão do estúdio',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Financeiro, fiscal e relatórios',
+                      style: TextStyle(
+                        color: Color(0xFFB8C9C9),
                         fontSize: 11,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_rounded,
+                  color: InkFlowColors.accent, size: 22),
+            ],
           ),
         ),
       ),
@@ -410,7 +483,7 @@ class ArtistHomeScreen extends ConsumerWidget {
   Widget _buildEmptyAgenda(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -419,16 +492,16 @@ class ArtistHomeScreen extends ConsumerWidget {
       child: Column(
         children: [
           Container(
-            width: 58,
-            height: 58,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               color: InkFlowColors.accent.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.event_available_outlined,
-                color: Color(0xFF267F7D), size: 29),
+                color: Color(0xFF267F7D), size: 26),
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 10),
           const Text('Seu dia está livre',
               style: TextStyle(
                   fontSize: 16,
@@ -440,7 +513,7 @@ class ArtistHomeScreen extends ConsumerWidget {
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: Color(0xFF7C8491)),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           TextButton.icon(
             onPressed: () => context.go('/schedule'),
             icon: const Icon(Icons.add_rounded, size: 19),

@@ -71,6 +71,16 @@ class FinanceRepository {
     });
   }
 
+  Future<void> deleteRecord(FinancialRecord record) async {
+    final table =
+        record.type == FinancialRecordType.payment ? 'payments' : 'expenses';
+    await _supabase
+        .from(table)
+        .delete()
+        .eq('id', record.id)
+        .eq('artist_id', _artistId);
+  }
+
   Future<Map<String, dynamic>?> getFiscalProfile() async {
     final row = await _supabase
         .from('artist_fiscal_profiles')

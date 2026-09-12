@@ -58,12 +58,226 @@ class StudioManagementScreen extends ConsumerWidget {
                     }
                   }
                 },
+                onDelete: (record) => _confirmDelete(context, ref, record),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    FinancialRecord record,
+  ) async {
+    final currency = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$',
+      decimalDigits: 2,
+    );
+    final isExpense = record.type == FinancialRecordType.expense;
+    const dangerColor = Color(0xFFE5484D);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFEAEB),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: dangerColor,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                isExpense ? 'Excluir despesa?' : 'Excluir recebimento?',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFF161720),
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Confira os dados antes de continuar.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF747782), fontSize: 13),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F8F9),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE8E9EC)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isExpense
+                            ? const Color(0xFFFFEAEB)
+                            : const Color(0xFFE6F8F6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isExpense
+                            ? Icons.north_east_rounded
+                            : Icons.south_west_rounded,
+                        color:
+                            isExpense ? dangerColor : const Color(0xFF008B84),
+                        size: 21,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            record.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF20212A),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            '${_friendlyLabel(record.category)} · '
+                            '${DateFormat('dd/MM/yyyy').format(record.date)}',
+                            style: const TextStyle(
+                              color: Color(0xFF7B7E89),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      currency.format(record.amount),
+                      style: TextStyle(
+                        color:
+                            isExpense ? dangerColor : const Color(0xFF008B84),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF4F4),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded,
+                        color: dangerColor, size: 19),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Essa ação é permanente e não poderá ser desfeita.',
+                        style: TextStyle(
+                          color: Color(0xFF8F383C),
+                          fontSize: 12,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF30323B),
+                          side: const BorderSide(color: Color(0xFFDADCE1)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: dangerColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon:
+                            const Icon(Icons.delete_outline_rounded, size: 18),
+                        label: const Text('Excluir'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await ref.read(financeRepositoryProvider).deleteRecord(record);
+      ref.invalidate(financialRecordsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Movimentação excluída.')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        showErrorSnackBar(context, userFriendlyErrorMessage(error));
+      }
+    }
   }
 
   Future<void> _showEntrySheet(
@@ -303,12 +517,14 @@ class _ManagementContent extends StatelessWidget {
   final VoidCallback onAddPayment;
   final VoidCallback onAddExpense;
   final ValueChanged<FinancialRecord> onGenerateReceipt;
+  final ValueChanged<FinancialRecord> onDelete;
 
   const _ManagementContent({
     required this.records,
     required this.onAddPayment,
     required this.onAddExpense,
     required this.onGenerateReceipt,
+    required this.onDelete,
   });
 
   @override
@@ -391,6 +607,7 @@ class _ManagementContent extends StatelessWidget {
                           record.status == 'PAGO'
                       ? () => onGenerateReceipt(record)
                       : null,
+                  onDelete: () => onDelete(record),
                 )),
         ],
       ),
@@ -546,14 +763,161 @@ class _ManagementLink extends StatelessWidget {
 class _RecordTile extends StatelessWidget {
   final FinancialRecord record;
   final VoidCallback? onReceipt;
+  final VoidCallback onDelete;
 
-  const _RecordTile({required this.record, required this.onReceipt});
+  const _RecordTile({
+    required this.record,
+    required this.onReceipt,
+    required this.onDelete,
+  });
+
+  Future<void> _showActions(BuildContext context) async {
+    final income = record.type == FinancialRecordType.payment;
+    final amount = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$',
+      decimalDigits: 2,
+    ).format(record.amount);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      builder: (sheetContext) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD9DCE1),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Opções da movimentação',
+              style: TextStyle(
+                color: Color(0xFF191B24),
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF6F7F8),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: (income
+                              ? InkFlowColors.accent
+                              : const Color(0xFFE35E61))
+                          .withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      income
+                          ? Icons.south_west_rounded
+                          : Icons.north_east_rounded,
+                      color: income
+                          ? const Color(0xFF167D7B)
+                          : const Color(0xFFE35E61),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          record.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${StudioManagementScreen._friendlyLabel(record.category)} · '
+                          '${DateFormat('dd/MM/yyyy').format(record.date)}',
+                          style: const TextStyle(
+                            color: Color(0xFF767A86),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${income ? '+' : '-'} $amount',
+                    style: TextStyle(
+                      color: income
+                          ? const Color(0xFF167D7B)
+                          : const Color(0xFFE35E61),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (onReceipt != null) ...[
+              _MovementAction(
+                icon: Icons.receipt_long_outlined,
+                iconColor: const Color(0xFF087F7A),
+                iconBackground: const Color(0xFFE7F7F5),
+                title: 'Gerar recibo',
+                subtitle: 'Criar e compartilhar o comprovante',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onReceipt?.call();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+            _MovementAction(
+              icon: Icons.delete_outline_rounded,
+              iconColor: const Color(0xFFE5484D),
+              iconBackground: const Color(0xFFFFEAEB),
+              title: 'Excluir movimentação',
+              subtitle: 'Remover este lançamento permanentemente',
+              danger: true,
+              onTap: () {
+                Navigator.pop(sheetContext);
+                onDelete();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final income = record.type == FinancialRecordType.payment;
     return ListTile(
-      onTap: onReceipt,
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(
         backgroundColor:
@@ -581,15 +945,104 @@ class _RecordTile extends StatelessWidget {
               fontSize: 12,
             ),
           ),
-          if (onReceipt != null) ...[
-            const SizedBox(width: 5),
-            const Icon(Icons.receipt_long_outlined,
-                size: 18, color: Color(0xFF7B8491)),
-          ],
+          const SizedBox(width: 2),
+          IconButton(
+            tooltip: 'Opções da movimentação',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              size: 20,
+              color: Color(0xFF7B8491),
+            ),
+            onPressed: () => _showActions(context),
+          ),
         ],
       ),
     );
   }
+}
+
+class _MovementAction extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBackground;
+  final String title;
+  final String subtitle;
+  final bool danger;
+  final VoidCallback onTap;
+
+  const _MovementAction({
+    required this.icon,
+    required this.iconColor,
+    required this.iconBackground,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: danger ? const Color(0xFFFFD7D9) : const Color(0xFFE6E8EC),
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(13),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: iconBackground,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: danger
+                              ? const Color(0xFFE5484D)
+                              : const Color(0xFF20222B),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Color(0xFF7B7E89),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: danger
+                      ? const Color(0xFFE5484D)
+                      : const Color(0xFF90949E),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _EmptyRecords extends StatelessWidget {
