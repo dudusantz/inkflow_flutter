@@ -21,7 +21,8 @@ class FinanceRepository {
       _supabase
           .from('payments')
           .select('id, appointment_id, description, amount, method, status, '
-              'paid_at, created_at')
+              'customer_name, customer_tax_id, customer_email, customer_phone, customer_address, '
+              'paid_at, created_at, appointments(client_name)')
           .eq('artist_id', _artistId),
       _supabase
           .from('expenses')
@@ -43,6 +44,11 @@ class FinanceRepository {
     required double amount,
     required String method,
     required String status,
+    required String customerName,
+    String? customerTaxId,
+    String? customerEmail,
+    String? customerPhone,
+    String? customerAddress,
     String? appointmentId,
   }) async {
     await _supabase.from('payments').insert({
@@ -51,6 +57,11 @@ class FinanceRepository {
       'amount': amount,
       'method': method,
       'status': status,
+      'customer_name': customerName,
+      'customer_tax_id': customerTaxId,
+      'customer_email': customerEmail,
+      'customer_phone': customerPhone,
+      'customer_address': customerAddress,
       'appointment_id': appointmentId,
       'paid_at': status == 'PAGO' ? DateTime.now().toIso8601String() : null,
     });

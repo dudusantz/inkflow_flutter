@@ -42,6 +42,7 @@ package-lock.json
 # OS
 .DS_Store
 Thumbs.db
+hs_err_pid*.log
 
 # Segredos
 .env

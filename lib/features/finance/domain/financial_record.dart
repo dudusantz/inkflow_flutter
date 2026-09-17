@@ -9,6 +9,11 @@ class FinancialRecord {
   final String category;
   final String status;
   final String? appointmentId;
+  final String? clientName;
+  final String? clientTaxId;
+  final String? clientEmail;
+  final String? clientPhone;
+  final String? clientAddress;
 
   const FinancialRecord({
     required this.id,
@@ -19,6 +24,11 @@ class FinancialRecord {
     required this.category,
     required this.status,
     this.appointmentId,
+    this.clientName,
+    this.clientTaxId,
+    this.clientEmail,
+    this.clientPhone,
+    this.clientAddress,
   });
 
   factory FinancialRecord.payment(Map<String, dynamic> row) => FinancialRecord(
@@ -33,6 +43,14 @@ class FinancialRecord {
         category: row['method']?.toString() ?? 'OUTRO',
         status: row['status']?.toString() ?? 'PENDENTE',
         appointmentId: row['appointment_id']?.toString(),
+        clientName: row['customer_name']?.toString() ??
+            (row['appointments'] is Map
+                ? (row['appointments'] as Map)['client_name']?.toString()
+                : null),
+        clientTaxId: row['customer_tax_id']?.toString(),
+        clientEmail: row['customer_email']?.toString(),
+        clientPhone: row['customer_phone']?.toString(),
+        clientAddress: row['customer_address']?.toString(),
       );
 
   factory FinancialRecord.expense(Map<String, dynamic> row) => FinancialRecord(
