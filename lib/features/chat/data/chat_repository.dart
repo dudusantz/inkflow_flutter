@@ -190,7 +190,7 @@ class ChatRepository {
           contactId: contactId,
           contactName: 'Usuário',
           lastMessage: message.content.isNotEmpty
-              ? message.content
+              ? message.previewText
               : switch (message.attachmentType) {
                   'image' => '📷 Foto',
                   'video' => '🎬 Vídeo',

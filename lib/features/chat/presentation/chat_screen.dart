@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:intl/intl.dart';
 import 'package:record/record.dart';
 import 'package:video_player/video_player.dart';
 
@@ -412,11 +413,136 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  void _showProposalUnavailable() {
-    showErrorSnackBar(
-      context,
-      'O envio de propostas ainda não está disponível.',
+  Future<void> _showProposalForm() async {
+    final formKey = GlobalKey<FormState>();
+    final serviceController = TextEditingController();
+    final amountController = TextEditingController();
+    final notesController = TextEditingController();
+    DateTime? scheduledDate;
+    var sending = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+              20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Nova proposta',
+                    style:
+                        TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                const Text('Informe o serviço, valor e prazo combinados.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                const SizedBox(height: 18),
+                TextFormField(
+                  controller: serviceController,
+                  decoration: const InputDecoration(
+                    labelText: 'Serviço',
+                    prefixIcon: Icon(Icons.design_services_outlined),
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Informe o serviço.'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: amountController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Valor',
+                    prefixText: 'R\$ ',
+                    prefixIcon: Icon(Icons.payments_outlined),
+                  ),
+                  validator: (value) {
+                    final amount = double.tryParse(
+                        (value ?? '').replaceAll('.', '').replaceAll(',', '.'));
+                    return amount == null || amount <= 0
+                        ? 'Informe um valor válido.'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 730)),
+                    );
+                    if (picked != null) {
+                      setSheetState(() => scheduledDate = picked);
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Data sugerida (opcional)',
+                      prefixIcon: Icon(Icons.calendar_today_outlined),
+                    ),
+                    child: Text(scheduledDate == null
+                        ? 'Selecionar data'
+                        : DateFormat('dd/MM/yyyy').format(scheduledDate!)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: notesController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Observações (opcional)',
+                    alignLabelWithHint: true,
+                    prefixIcon: Icon(Icons.notes_rounded),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                InkButton(
+                  label: 'Enviar proposta',
+                  isLoading: sending,
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+                    setSheetState(() => sending = true);
+                    final amount = double.parse(amountController.text
+                        .replaceAll('.', '')
+                        .replaceAll(',', '.'));
+                    try {
+                      await ref.read(chatRepositoryProvider).sendMessage(
+                            receiverId: widget.contactId,
+                            content: ChatMessage.encodeProposal({
+                              'service': serviceController.text.trim(),
+                              'amount': amount,
+                              'date': scheduledDate?.toIso8601String(),
+                              'notes': notesController.text.trim(),
+                            }),
+                          );
+                      if (sheetContext.mounted) Navigator.pop(sheetContext);
+                    } catch (error) {
+                      if (sheetContext.mounted) {
+                        showErrorSnackBar(
+                            sheetContext, userFriendlyErrorMessage(error));
+                        setSheetState(() => sending = false);
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
+    serviceController.dispose();
+    amountController.dispose();
+    notesController.dispose();
   }
 
   @override
@@ -628,14 +754,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       _isSending || _isRecording ? null : _showAttachmentSheet,
                 ),
                 if (isArtist) ...[
-                  // A proposta formal (RF04/RF05) ainda não tem tabela no banco. O
-                  // botão permanece visível, mas assume explicitamente que não
-                  // funciona em vez de abrir um formulário que descarta os dados.
                   IconButton(
                     icon: const Icon(Icons.request_quote_outlined,
-                        color: Color(0xFF6B7280)),
-                    tooltip: 'Enviar proposta (em desenvolvimento)',
-                    onPressed: _showProposalUnavailable,
+                        color: InkFlowColors.accentDark),
+                    tooltip: 'Enviar proposta',
+                    onPressed: _isSending ? null : _showProposalForm,
                   ),
                   const SizedBox(width: 4),
                 ],
@@ -707,10 +830,16 @@ class _MessageBubble extends StatelessWidget {
                   isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: message.isProposal
+                      ? EdgeInsets.zero
+                      : const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: isMine ? InkFlowColors.primary : Colors.white,
+                    color: message.isProposal
+                        ? Colors.white
+                        : isMine
+                            ? InkFlowColors.primary
+                            : Colors.white,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
                       topRight: const Radius.circular(16),
@@ -729,9 +858,12 @@ class _MessageBubble extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (message.proposal case final proposal?)
+                        _ProposalCard(proposal: proposal),
                       if (message.hasAttachment)
                         _AttachmentContent(message: message),
-                      if (message.content.isNotEmpty) ...[
+                      if (message.content.isNotEmpty &&
+                          !message.isProposal) ...[
                         if (message.hasAttachment) const SizedBox(height: 8),
                         Text(
                           message.content,
@@ -756,6 +888,102 @@ class _MessageBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProposalCard extends StatelessWidget {
+  final Map<String, dynamic> proposal;
+
+  const _ProposalCard({required this.proposal});
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = double.tryParse(proposal['amount']?.toString() ?? '') ?? 0;
+    final scheduledDate = DateTime.tryParse(proposal['date']?.toString() ?? '');
+    final notes = proposal['notes']?.toString().trim() ?? '';
+    final currency =
+        NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$', decimalDigits: 2);
+
+    return SizedBox(
+      width: 270,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+            decoration: const BoxDecoration(
+              color: InkFlowColors.primary,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.request_quote_outlined,
+                    color: Color(0xFF63CCC7), size: 21),
+                SizedBox(width: 9),
+                Text('PROPOSTA',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .7)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(proposal['service']?.toString() ?? 'Serviço',
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child:
+                            _proposalValue('Valor', currency.format(amount))),
+                    if (scheduledDate != null)
+                      Expanded(
+                        child: _proposalValue('Data sugerida',
+                            DateFormat('dd/MM/yyyy').format(scheduledDate)),
+                      ),
+                  ],
+                ),
+                if (notes.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F7F7),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(notes,
+                        style: const TextStyle(
+                            color: Color(0xFF526063),
+                            fontSize: 11,
+                            height: 1.35)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _proposalValue(String label, String value) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(fontSize: 9, color: Color(0xFF7B8491))),
+          const SizedBox(height: 2),
+          Text(value,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+        ],
+      );
 }
 
 class _AttachmentAction extends StatelessWidget {

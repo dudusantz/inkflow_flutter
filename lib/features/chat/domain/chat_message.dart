@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 /// Mensagem de uma conversa entre dois usuarios.
 class ChatMessage {
+  static const proposalPrefix = '[INKFLOW_PROPOSAL]';
   final String id;
   final String senderId;
   final String receiverId;
@@ -60,8 +63,25 @@ class ChatMessage {
 
   bool get hasAttachment => attachmentPath != null;
 
-  String get timeLabel =>
-      '${createdAt.hour.toString().padLeft(2, '0')}:'
+  Map<String, dynamic>? get proposal {
+    if (!content.startsWith(proposalPrefix)) return null;
+    try {
+      return Map<String, dynamic>.from(
+        jsonDecode(content.substring(proposalPrefix.length)) as Map,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get isProposal => proposal != null;
+
+  String get previewText => isProposal ? '📋 Proposta enviada' : content;
+
+  static String encodeProposal(Map<String, dynamic> values) =>
+      '$proposalPrefix${jsonEncode(values)}';
+
+  String get timeLabel => '${createdAt.hour.toString().padLeft(2, '0')}:'
       '${createdAt.minute.toString().padLeft(2, '0')}';
 }
 
@@ -116,8 +136,7 @@ class Conversation {
     );
   }
 
-  String get preview =>
-      lastMessageIsMine ? 'Você: $lastMessage' : lastMessage;
+  String get preview => lastMessageIsMine ? 'Você: $lastMessage' : lastMessage;
 
   /// Hora para conversas de hoje, data curta para as anteriores.
   String timeLabel({DateTime? now}) {
