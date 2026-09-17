@@ -168,10 +168,10 @@ class AppHeader extends StatelessWidget {
                   label: 'Voltar',
                   child: IconButton(
                     onPressed: () {
-                      if (backTo != null) {
-                        context.go(backTo!);
-                      } else if (context.canPop()) {
+                      if (context.canPop()) {
                         context.pop();
+                      } else if (backTo != null) {
+                        context.go(backTo!);
                       } else {
                         context.go('/home');
                       }

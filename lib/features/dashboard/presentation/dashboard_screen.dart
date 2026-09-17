@@ -7,6 +7,7 @@ import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/finance/data/finance_repository.dart';
 import 'package:inkflow/features/finance/domain/financial_record.dart';
+import 'package:inkflow/features/finance/services/financial_report_service.dart';
 import 'package:inkflow/features/schedule/data/appointment_repository.dart';
 import 'package:inkflow/features/schedule/domain/appointment.dart';
 
@@ -25,6 +26,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   DateTime? _startDate;
   DateTime? _endDate;
   String? _periodError;
+  bool _generatingReport = false;
 
   List<Appointment> _allAppointments = [];
   List<Appointment> _filteredAppointments = [];
@@ -68,15 +70,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _recalculateDashboard() {
-    final now = DateTime.now();
-    final custom = _startDate != null && _endDate != null;
-    final months = _period == 'year' ? 12 : (_period == 'quarter' ? 3 : 6);
-    final rangeStart = custom
-        ? DateTime(_startDate!.year, _startDate!.month, _startDate!.day)
-        : DateTime(now.year, now.month - months + 1);
-    final rangeEnd = custom
-        ? DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59)
-        : DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+    final range = _selectedRange;
+    final rangeStart = range.start;
+    final rangeEnd = range.end;
 
     _filteredAppointments = _allAppointments.where((appointment) {
       final normalizedStatus = appointment.status.toLowerCase();
@@ -142,6 +138,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   bool get _isPeriodInvalid =>
       _startDate != null && _endDate != null && _startDate!.isAfter(_endDate!);
+
+  DateTimeRange get _selectedRange {
+    final now = DateTime.now();
+    if (_startDate != null && _endDate != null) {
+      return DateTimeRange(
+        start: DateTime(_startDate!.year, _startDate!.month, _startDate!.day),
+        end: DateTime(
+            _endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59),
+      );
+    }
+    final months = _period == 'year' ? 12 : (_period == 'quarter' ? 3 : 1);
+    return DateTimeRange(
+      start: DateTime(now.year, now.month - months + 1),
+      end: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
+    );
+  }
+
+  Future<void> _generateReport() async {
+    setState(() => _generatingReport = true);
+    try {
+      final range = _selectedRange;
+      await FinancialReportService.preview(
+        records: _filteredFinancialRecords,
+        start: range.start,
+        end: range.end,
+      );
+    } catch (error) {
+      if (mounted) {
+        showErrorSnackBar(context, userFriendlyErrorMessage(error));
+      }
+    } finally {
+      if (mounted) setState(() => _generatingReport = false);
+    }
+  }
 
   Future<void> _pickDateRange() async {
     final range = await showDateRangePicker(
@@ -364,6 +394,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               );
             }).toList(),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _generatingReport ? null : _generateReport,
+              icon: _generatingReport
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.picture_as_pdf_outlined),
+              label: Text(_generatingReport
+                  ? 'Gerando relatório...'
+                  : 'Gerar relatório de créditos e débitos'),
+            ),
           ),
           const SizedBox(height: 16),
 

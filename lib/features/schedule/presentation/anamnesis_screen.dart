@@ -118,7 +118,8 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
             icon: const Icon(Icons.arrow_back_ios_new,
                 color: Colors.white, size: 20),
             tooltip: 'Voltar',
-            onPressed: () => context.go('/home'),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/home'),
           ),
           const Expanded(
             child: Text(
@@ -147,9 +148,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            _hasRisk
-                ? 'Respostas com alerta médico'
-                : 'Respostas preenchidas',
+            _hasRisk ? 'Respostas com alerta médico' : 'Respostas preenchidas',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -217,8 +216,8 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
             (line) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(line,
-                  style: const TextStyle(
-                      fontSize: 13, color: Color(0xFF4B5563))),
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFF4B5563))),
             ),
           ),
         ],
@@ -312,8 +311,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color:
-                      _termsError ? InkFlowColors.error : Colors.transparent,
+                  color: _termsError ? InkFlowColors.error : Colors.transparent,
                   width: 1.5,
                 ),
               ),
