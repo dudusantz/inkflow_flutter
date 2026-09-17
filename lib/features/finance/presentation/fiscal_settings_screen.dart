@@ -182,6 +182,7 @@ class _FiscalSettingsScreenState extends ConsumerState<FiscalSettingsScreen> {
             title: 'Dados do estúdio e recibos',
             showBack: true,
             backTo: '/studio-management',
+            dark: true,
           ),
           Expanded(
             child: _loading
@@ -196,143 +197,189 @@ class _FiscalSettingsScreenState extends ConsumerState<FiscalSettingsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(14),
+                            padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFF7E8),
-                              borderRadius: BorderRadius.circular(14),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF183638), Color(0xFF244A4B)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(22),
                             ),
-                            child: const Row(
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(Icons.info_outline,
-                                    size: 20, color: Color(0xFF9A6500)),
-                                SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    'Este cadastro prepara recibos e relatórios. A emissão oficial de NFS-e dependerá da integração com um provedor fiscal.',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        height: 1.35,
-                                        color: Color(0xFF805A13)),
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: InkFlowColors.accent
+                                        .withValues(alpha: .16),
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                  child: const Icon(Icons.receipt_long_outlined,
+                                      size: 22, color: Color(0xFF63CCC7)),
+                                ),
+                                const SizedBox(width: 13),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Identidade do seu estúdio',
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800)),
+                                      SizedBox(height: 5),
+                                      Text(
+                                        'Esses dados serão usados automaticamente nos recibos e relatórios.',
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            height: 1.35,
+                                            color: Color(0xFFC4D0D0)),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          const Text('Identificação fiscal',
-                              style: TextStyle(
-                                  fontSize: 17, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 12),
-                          SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(
-                                  value: 'PF', label: Text('Pessoa física')),
-                              ButtonSegment(
-                                  value: 'PJ', label: Text('Pessoa jurídica')),
+                          const SizedBox(height: 14),
+                          _sectionCard(
+                            number: '1',
+                            title: 'Identificação fiscal',
+                            subtitle: 'Dados legais do profissional ou estúdio',
+                            icon: Icons.badge_outlined,
+                            children: [
+                              SizedBox(
+                                width: double.infinity,
+                                child: SegmentedButton<String>(
+                                  segments: const [
+                                    ButtonSegment(
+                                        value: 'PF',
+                                        icon: Icon(Icons.person_outline),
+                                        label: Text('Pessoa física')),
+                                    ButtonSegment(
+                                        value: 'PJ',
+                                        icon: Icon(Icons.storefront_outlined),
+                                        label: Text('Pessoa jurídica')),
+                                  ],
+                                  selected: {_personType},
+                                  onSelectionChanged: (value) =>
+                                      _changePersonType(value.first),
+                                  style: const ButtonStyle(
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              _field(
+                                  _taxId, _personType == 'PF' ? 'CPF' : 'CNPJ',
+                                  required: true,
+                                  numeric: true,
+                                  inputFormatters: [_taxMask],
+                                  icon: Icons.fingerprint),
+                              _field(
+                                  _legalName,
+                                  _personType == 'PF'
+                                      ? 'Nome completo'
+                                      : 'Razão social',
+                                  required: true,
+                                  icon: Icons.person_outline),
+                              _field(_tradeName, 'Nome fantasia',
+                                  icon: Icons.store_outlined),
+                              _field(
+                                  _municipalRegistration, 'Inscrição municipal',
+                                  icon: Icons.article_outlined),
+                              _field(_taxRate, 'Alíquota de referência (%)',
+                                  numeric: true, icon: Icons.percent_rounded),
                             ],
-                            selected: {_personType},
-                            onSelectionChanged: (value) =>
-                                _changePersonType(value.first),
                           ),
                           const SizedBox(height: 14),
-                          _field(_taxId, _personType == 'PF' ? 'CPF' : 'CNPJ',
-                              required: true,
-                              numeric: true,
-                              inputFormatters: [_taxMask]),
-                          _field(
-                              _legalName,
-                              _personType == 'PF'
-                                  ? 'Nome completo'
-                                  : 'Razão social',
-                              required: true),
-                          _field(_tradeName, 'Nome fantasia'),
-                          _field(_municipalRegistration, 'Inscrição municipal'),
-                          _field(
-                            _postalCode,
-                            'CEP',
-                            numeric: true,
-                            inputFormatters: [_cepMask],
-                            onChanged: _lookupCep,
-                            suffixIcon: _lookingUpCep
-                                ? const Padding(
-                                    padding: EdgeInsets.all(14),
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: InkFlowColors.accent,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          _field(_address, 'Endereço fiscal', maxLines: 2),
-                          Row(
+                          _sectionCard(
+                            number: '2',
+                            title: 'Endereço e contato',
+                            subtitle: 'Informações exibidas nos documentos',
+                            icon: Icons.location_on_outlined,
                             children: [
-                              Expanded(child: _field(_city, 'Cidade')),
-                              const SizedBox(width: 10),
-                              SizedBox(
-                                width: 90,
-                                child: _field(
-                                  _state,
-                                  'UF',
-                                  inputFormatters: [
-                                    LengthLimitingTextInputFormatter(2),
-                                    UpperCaseTextFormatter(),
-                                  ],
-                                ),
+                              _field(
+                                _postalCode,
+                                'CEP',
+                                numeric: true,
+                                inputFormatters: [_cepMask],
+                                onChanged: _lookupCep,
+                                icon: Icons.local_post_office_outlined,
+                                suffixIcon: _lookingUpCep
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(14),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: InkFlowColors.accent,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              _field(_address, 'Endereço fiscal',
+                                  maxLines: 2, icon: Icons.home_work_outlined),
+                              Row(
+                                children: [
+                                  Expanded(child: _field(_city, 'Cidade')),
+                                  const SizedBox(width: 10),
+                                  SizedBox(
+                                    width: 86,
+                                    child: _field(
+                                      _state,
+                                      'UF',
+                                      inputFormatters: [
+                                        LengthLimitingTextInputFormatter(2),
+                                        UpperCaseTextFormatter(),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              _field(_email, 'E-mail profissional',
+                                  keyboardType: TextInputType.emailAddress,
+                                  icon: Icons.alternate_email_rounded),
+                              _field(
+                                _phone,
+                                'Telefone profissional',
+                                numeric: true,
+                                inputFormatters: [_phoneMask],
+                                icon: Icons.phone_outlined,
                               ),
                             ],
                           ),
-                          _field(_email, 'E-mail profissional',
-                              keyboardType: TextInputType.emailAddress),
-                          _field(
-                            _phone,
-                            'Telefone profissional',
-                            numeric: true,
-                            inputFormatters: [_phoneMask],
+                          const SizedBox(height: 14),
+                          _sectionCard(
+                            number: '3',
+                            title: 'Preferências do recibo',
+                            subtitle: 'Textos preenchidos automaticamente',
+                            icon: Icons.description_outlined,
+                            children: [
+                              _field(_defaultService,
+                                  'Descrição padrão do serviço',
+                                  maxLines: 2,
+                                  icon: Icons.design_services_outlined),
+                              _field(_receiptNotes, 'Observações padrão',
+                                  maxLines: 3, icon: Icons.notes_rounded),
+                            ],
                           ),
-                          _field(_taxRate, 'Alíquota de referência (%)',
-                              numeric: true),
-                          const SizedBox(height: 8),
-                          const Text('Preferências do recibo',
-                              style: TextStyle(
-                                  fontSize: 17, fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 12),
-                          _field(_defaultService, 'Descrição padrão do serviço',
-                              maxLines: 2),
-                          _field(_receiptNotes, 'Observações padrão',
-                              maxLines: 3),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 18),
                           InkButton(
-                            label: 'Salvar dados fiscais',
-                            isLoading: _saving,
-                            onPressed: _save,
-                          ),
-                          const SizedBox(height: 24),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: const Column(
-                              children: [
-                                Icon(Icons.receipt_long_outlined,
-                                    color: Color(0xFF167D7B), size: 30),
-                                SizedBox(height: 8),
-                                Text('Documentos de serviço',
-                                    style:
-                                        TextStyle(fontWeight: FontWeight.w800)),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Os PDFs seguem um modelo fiscal com a identidade do InkFlow. A NFS-e oficial ainda depende de integração municipal.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                      fontSize: 11, color: Color(0xFF7B8491)),
-                                ),
-                              ],
+                              label: 'Salvar configurações',
+                              isLoading: _saving,
+                              onPressed: _save),
+                          const SizedBox(height: 12),
+                          const Center(
+                            child: Text(
+                              'Documentos do InkFlow não substituem a NFS-e oficial.',
+                              style: TextStyle(
+                                  fontSize: 10, color: Color(0xFF7B8491)),
                             ),
                           ),
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
@@ -353,6 +400,7 @@ class _FiscalSettingsScreenState extends ConsumerState<FiscalSettingsScreen> {
     List<TextInputFormatter>? inputFormatters,
     ValueChanged<String>? onChanged,
     Widget? suffixIcon,
+    IconData? icon,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -365,12 +413,80 @@ class _FiscalSettingsScreenState extends ConsumerState<FiscalSettingsScreen> {
                 : TextInputType.text),
         inputFormatters: inputFormatters,
         onChanged: onChanged,
-        decoration: InputDecoration(labelText: label, suffixIcon: suffixIcon),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: icon == null ? null : Icon(icon, size: 19),
+          suffixIcon: suffixIcon,
+          filled: true,
+          fillColor: const Color(0xFFF8F9FA),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE1E5E8)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                const BorderSide(color: InkFlowColors.accent, width: 1.4),
+          ),
+        ),
         validator: required
             ? (value) => value == null || value.trim().isEmpty
                 ? 'Campo obrigatório.'
                 : null
             : null,
+      ),
+    );
+  }
+
+  Widget _sectionCard({
+    required String number,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE3E7E9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: InkFlowColors.accent.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: const Color(0xFF167D7B), size: 20),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$number. $title',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            fontSize: 10, color: Color(0xFF7B8491))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...children,
+        ],
       ),
     );
   }

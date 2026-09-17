@@ -197,66 +197,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F7),
       body: Column(
         children: [
           const AppHeader(
             title: 'Dashboard Financeiro',
             showBack: true,
             backTo: '/home',
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: InkFlowColors.accent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.verified_outlined,
-                          color: Color(0xFF167D7B), size: 19),
-                      SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          'Dados reais da agenda e da gestão. Compare valores agendados, recebimentos e despesas.',
-                          style: TextStyle(
-                            color: Color(0xFF376765),
-                            fontSize: 11,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  height: 46,
-                  child: OutlinedButton.icon(
-                    onPressed: _pickDateRange,
-                    icon: const Icon(Icons.date_range, size: 18),
-                    label: Text(
-                      _startDate == null
-                          ? 'Período personalizado'
-                          : '${_startDate!.day}/${_startDate!.month} – ${_endDate!.day}/${_endDate!.month}',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: InkFlowColors.primary,
-                      side: const BorderSide(color: Color(0xFFE1E4E8)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            dark: true,
           ),
           if (_periodError != null)
             Padding(
@@ -289,38 +237,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           style: TextStyle(color: Color(0xFF6B7280)),
                         ),
                       )
-                    : _monthlyData.isEmpty
-                        ? _buildEmpty()
-                        : _buildDashboard(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmpty() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-                color: Colors.grey.shade100, shape: BoxShape.circle),
-            child: Icon(Icons.bar_chart, color: Colors.grey.shade400, size: 40),
-          ),
-          const SizedBox(height: 16),
-          Text('Nenhum dado disponível',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade700)),
-          const SizedBox(height: 8),
-          Text(
-            'Realize sessões para visualizar\nsuas métricas aqui.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    : _buildDashboard(),
           ),
         ],
       ),
@@ -347,6 +264,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final expenses = _filteredFinancialRecords
         .where((record) => record.type == FinancialRecordType.expense)
         .fold<double>(0, (sum, record) => sum + record.amount);
+    final net = received - expenses;
     final currency = NumberFormat.currency(
       locale: 'pt_BR',
       symbol: 'R\$',
@@ -354,97 +272,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Período
-          Row(
-            children: ['month', 'quarter', 'year'].map((p) {
-              final label =
-                  {'month': 'Mês', 'quarter': 'Trimestre', 'year': 'Ano'}[p]!;
-              final sel = _period == p;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _period = p;
-                      _startDate = null;
-                      _endDate = null;
-                      _recalculateDashboard();
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: sel ? InkFlowColors.primary : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                          color: sel ? Colors.white : Colors.grey.shade600,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _generatingReport ? null : _generateReport,
-              icon: _generatingReport
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.picture_as_pdf_outlined),
-              label: Text(_generatingReport
-                  ? 'Gerando relatório...'
-                  : 'Gerar relatório de créditos e débitos'),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Cards de summary
-          Row(
-            children: [
-              _summaryCard('Valor agendado', currency.format(totalRevenue),
-                  Icons.attach_money, InkFlowColors.accent),
-              const SizedBox(width: 10),
-              _summaryCard('Total de Sessões', '$totalSessions sessões',
-                  Icons.calendar_today, const Color(0xFF8B5CF6)),
-            ],
-          ),
+          _financialHero(currency, net, received, expenses),
+          const SizedBox(height: 14),
+          _periodPanel(),
+          const SizedBox(height: 14),
+          Row(children: [
+            _summaryCard('Valor agendado', currency.format(totalRevenue),
+                Icons.event_available_outlined, const Color(0xFF167D7B)),
+            const SizedBox(width: 10),
+            _summaryCard('A receber', currency.format(pending),
+                Icons.schedule_rounded, const Color(0xFFF59E0B)),
+          ]),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              _summaryCard('Recebido', currency.format(received),
-                  Icons.south_west, const Color(0xFF10B981)),
-              const SizedBox(width: 10),
-              _summaryCard('Pendente', currency.format(pending), Icons.schedule,
-                  const Color(0xFFF59E0B)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              _summaryCard('Despesas', currency.format(expenses),
-                  Icons.north_east, const Color(0xFFEF4444)),
-              const SizedBox(width: 10),
-              _summaryCard('Ticket médio', currency.format(ticketAverage),
-                  Icons.trending_up, const Color(0xFF8B5CF6)),
-            ],
-          ),
-          const SizedBox(height: 20),
+          Row(children: [
+            _summaryCard('Sessões', '$totalSessions',
+                Icons.calendar_month_outlined, const Color(0xFF6F56D9)),
+            const SizedBox(width: 10),
+            _summaryCard('Ticket médio', currency.format(ticketAverage),
+                Icons.trending_up_rounded, const Color(0xFF3B82F6)),
+          ]),
+          const SizedBox(height: 24),
 
           // Gráfico de receita
           _sectionTitle('Valor agendado por mês'),
@@ -654,19 +505,226 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return highest <= 0 ? 100 : highest * 1.2;
   }
 
+  Widget _financialHero(
+    NumberFormat currency,
+    double net,
+    double received,
+    double expenses,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF111218), Color(0xFF203436)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF111218).withValues(alpha: .16),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Resultado do período',
+              style: TextStyle(color: Color(0xFFB9C5C5), fontSize: 12)),
+          const SizedBox(height: 6),
+          Text(
+            currency.format(net),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -.7,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _heroValue(
+                    'Recebido',
+                    received,
+                    Icons.south_west_rounded,
+                    const Color(0xFF63CCC7),
+                    currency),
+              ),
+              Container(width: 1, height: 34, color: const Color(0xFF405052)),
+              const SizedBox(width: 18),
+              Expanded(
+                child: _heroValue(
+                    'Despesas',
+                    expenses,
+                    Icons.north_east_rounded,
+                    const Color(0xFFFF8589),
+                    currency),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroValue(String label, double value, IconData icon, Color color,
+      NumberFormat currency) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .14),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, color: color, size: 17),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style:
+                      const TextStyle(color: Color(0xFF9DABAC), fontSize: 9)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(currency.format(value),
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _periodPanel() {
+    final range = _selectedRange;
+    final rangeLabel =
+        '${DateFormat('dd MMM', 'pt_BR').format(range.start)} — ${DateFormat('dd MMM yyyy', 'pt_BR').format(range.end)}';
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE4E8EA)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: ['month', 'quarter', 'year'].map((period) {
+              final selected = _period == period && _startDate == null;
+              final label = {
+                'month': 'Mês',
+                'quarter': 'Trimestre',
+                'year': 'Ano'
+              }[period]!;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => setState(() {
+                      _period = period;
+                      _startDate = null;
+                      _endDate = null;
+                      _recalculateDashboard();
+                    }),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? InkFlowColors.primary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: selected
+                                  ? Colors.white
+                                  : const Color(0xFF697277),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: _pickDateRange,
+                  borderRadius: BorderRadius.circular(13),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F7F7),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today_outlined,
+                            color: Color(0xFF167D7B), size: 17),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(rangeLabel,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 10, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              IconButton.filled(
+                onPressed: _generatingReport ? null : _generateReport,
+                tooltip: 'Gerar relatório em PDF',
+                style: IconButton.styleFrom(
+                  backgroundColor: InkFlowColors.accent,
+                  foregroundColor: InkFlowColors.primary,
+                  disabledBackgroundColor: const Color(0xFFDDE5E5),
+                ),
+                icon: _generatingReport
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.file_download_outlined, size: 20),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _summaryCard(String label, String value, IconData icon, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2)),
-          ],
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE7EAEC)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -678,7 +736,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
               child: Icon(icon, color: color, size: 16),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             SizedBox(
               height: 22,
               child: FittedBox(
@@ -686,7 +744,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 alignment: Alignment.centerLeft,
                 child: Text(value,
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
+                        fontSize: 17, fontWeight: FontWeight.w800)),
               ),
             ),
             Text(label,
