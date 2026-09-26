@@ -43,6 +43,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _picker = ImagePicker();
   final _recorder = AudioRecorder();
   bool _isSending = false;
+  String? _cancellingProposalId;
+  final _locallyCancelledProposalIds = <String>{};
   bool _isRecording = false;
   bool _isRecordingPaused = false;
   int _recordingSeconds = 0;
@@ -419,49 +421,95 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final amountController = TextEditingController();
     final notesController = TextEditingController();
     DateTime? scheduledDate;
+    TimeOfDay? scheduledTime;
+    var showScheduleErrors = false;
+    var scheduleInPast = false;
     var sending = false;
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: InkFlowColors.background,
       showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
-              20, 4, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+              22, 4, 22, MediaQuery.viewInsetsOf(context).bottom + 24),
           child: Form(
             key: formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Nova proposta',
-                    style:
-                        TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                const Text('Informe o serviço, valor e prazo combinados.',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: InkFlowColors.accent.withValues(alpha: .18),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.request_quote_outlined,
+                          color: InkFlowColors.accentDark),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Nova proposta',
+                              style: TextStyle(
+                                  color: InkFlowColors.text,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800)),
+                          SizedBox(height: 2),
+                          Text('Combine os detalhes com o cliente',
+                              style: TextStyle(
+                                  color: InkFlowColors.textMuted,
+                                  fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                const Text('Serviço *',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: serviceController,
                   decoration: const InputDecoration(
-                    labelText: 'Serviço',
+                    hintText: 'Ex.: tatuagem no antebraço',
                     prefixIcon: Icon(Icons.design_services_outlined),
                   ),
                   validator: (value) => value == null || value.trim().isEmpty
                       ? 'Informe o serviço.'
                       : null,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
+                const Text('Valor combinado *',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: amountController,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
-                    labelText: 'Valor',
-                    prefixText: 'R\$ ',
-                    prefixIcon: Icon(Icons.payments_outlined),
+                    hintText: '0,00',
+                    prefixIcon: Padding(
+                      padding: EdgeInsets.only(left: 14, right: 10),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.payments_outlined),
+                          SizedBox(width: 10),
+                          Text('R\$'),
+                        ],
+                      ),
+                    ),
                   ),
                   validator: (value) {
                     final amount = double.tryParse(
@@ -471,7 +519,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         : null;
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
+                const Text('Data *',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
                 InkWell(
                   onTap: () async {
                     final picked = await showDatePicker(
@@ -480,36 +531,106 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       lastDate: DateTime.now().add(const Duration(days: 730)),
                     );
                     if (picked != null) {
-                      setSheetState(() => scheduledDate = picked);
+                      setSheetState(() {
+                        scheduledDate = picked;
+                        scheduleInPast = false;
+                      });
                     }
                   },
                   borderRadius: BorderRadius.circular(14),
                   child: InputDecorator(
                     decoration: const InputDecoration(
-                      labelText: 'Data sugerida (opcional)',
                       prefixIcon: Icon(Icons.calendar_today_outlined),
+                    ).copyWith(
+                      errorText: showScheduleErrors && scheduledDate == null
+                          ? 'Selecione uma data.'
+                          : null,
                     ),
-                    child: Text(scheduledDate == null
-                        ? 'Selecionar data'
-                        : DateFormat('dd/MM/yyyy').format(scheduledDate!)),
+                    child: Text(
+                      scheduledDate == null
+                          ? 'Escolher data'
+                          : DateFormat('dd/MM/yyyy').format(scheduledDate!),
+                      style: TextStyle(
+                        color: scheduledDate == null
+                            ? InkFlowColors.textMuted
+                            : InkFlowColors.text,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
+                const Text('Horário *',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: scheduledTime ?? TimeOfDay.now(),
+                    );
+                    if (picked != null) {
+                      setSheetState(() {
+                        scheduledTime = picked;
+                        scheduleInPast = false;
+                      });
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.access_time_outlined),
+                    ).copyWith(
+                      errorText: showScheduleErrors && scheduledTime == null
+                          ? 'Selecione um horário.'
+                          : scheduleInPast
+                              ? 'Escolha uma data e horário futuros.'
+                              : null,
+                    ),
+                    child: Text(
+                      scheduledTime == null
+                          ? 'Escolher horário'
+                          : '${scheduledTime!.hour.toString().padLeft(2, '0')}:${scheduledTime!.minute.toString().padLeft(2, '0')}',
+                      style: TextStyle(
+                        color: scheduledTime == null
+                            ? InkFlowColors.textMuted
+                            : InkFlowColors.text,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text('Observações',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: notesController,
                   maxLines: 3,
                   decoration: const InputDecoration(
-                    labelText: 'Observações (opcional)',
-                    alignLabelWithHint: true,
-                    prefixIcon: Icon(Icons.notes_rounded),
+                    hintText: 'Inclua detalhes importantes (opcional)',
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 InkButton(
                   label: 'Enviar proposta',
                   isLoading: sending,
                   onPressed: () async {
-                    if (!formKey.currentState!.validate()) return;
+                    final validFields = formKey.currentState!.validate();
+                    setSheetState(() => showScheduleErrors = true);
+                    if (!validFields ||
+                        scheduledDate == null ||
+                        scheduledTime == null) {
+                      return;
+                    }
+                    final isFuture = isFutureProposalSchedule(
+                      scheduledDate!,
+                      scheduledTime!.hour,
+                      scheduledTime!.minute,
+                      DateTime.now(),
+                    );
+                    setSheetState(() => scheduleInPast = !isFuture);
+                    if (!isFuture) {
+                      return;
+                    }
                     setSheetState(() => sending = true);
                     final amount = double.parse(amountController.text
                         .replaceAll('.', '')
@@ -520,7 +641,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             content: ChatMessage.encodeProposal({
                               'service': serviceController.text.trim(),
                               'amount': amount,
-                              'date': scheduledDate?.toIso8601String(),
+                              'date': scheduledDate!.toIso8601String(),
+                              'time':
+                                  '${scheduledTime!.hour.toString().padLeft(2, '0')}:${scheduledTime!.minute.toString().padLeft(2, '0')}',
                               'notes': notesController.text.trim(),
                             }),
                           );
@@ -543,6 +666,83 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     serviceController.dispose();
     amountController.dispose();
     notesController.dispose();
+  }
+
+  Future<void> _cancelProposal(ChatMessage message) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: InkFlowColors.background,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 4, 22, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Cancelar proposta?',
+                  style: TextStyle(
+                      color: InkFlowColors.text,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              const Text(
+                'Ela continuará no histórico da conversa, identificada como cancelada.',
+                style: TextStyle(
+                    color: InkFlowColors.textMuted, fontSize: 14, height: 1.45),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: () => Navigator.pop(sheetContext, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: InkFlowColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text('Cancelar proposta'),
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext, false),
+                  style: TextButton.styleFrom(
+                    foregroundColor: InkFlowColors.textMuted,
+                  ),
+                  child: const Text('Manter proposta'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted || _cancellingProposalId != null) {
+      return;
+    }
+
+    setState(() => _cancellingProposalId = message.id);
+    try {
+      await ref.read(chatRepositoryProvider).sendMessage(
+            receiverId: widget.contactId,
+            content: ChatMessage.encodeProposalCancellation(message.id),
+          );
+      if (mounted) {
+        setState(() => _locallyCancelledProposalIds.add(message.id));
+      }
+    } catch (error) {
+      if (mounted) {
+        showErrorSnackBar(context, userFriendlyErrorMessage(error));
+      }
+    } finally {
+      if (mounted) setState(() => _cancellingProposalId = null);
+    }
   }
 
   @override
@@ -569,7 +769,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ref.invalidate(chatStreamProvider(widget.contactId)),
                 ),
                 data: (messages) {
-                  if (messages.isEmpty) {
+                  final cancelledProposals = messages
+                      .where((message) => message.cancelledProposalId != null)
+                      .map((message) => (
+                            message.cancelledProposalId!,
+                            message.senderId,
+                            message.receiverId,
+                          ))
+                      .toSet();
+                  final visibleMessages = messages
+                      .where((message) => message.cancelledProposalId == null)
+                      .toList();
+                  if (visibleMessages.isEmpty) {
                     return const Center(
                       child: Text('Nenhuma mensagem. Comece a conversa!',
                           style: TextStyle(color: Color(0xFF6B7280))),
@@ -580,11 +791,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     reverse: true,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 20),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) => _MessageBubble(
-                      key: ValueKey(messages[index].id),
-                      message: messages[index],
-                    ),
+                    itemCount: visibleMessages.length,
+                    itemBuilder: (context, index) {
+                      final message = visibleMessages[index];
+                      final cancelled = cancelledProposals.contains((
+                            message.id,
+                            message.senderId,
+                            message.receiverId,
+                          )) ||
+                          _locallyCancelledProposalIds.contains(message.id);
+                      return _MessageBubble(
+                        key: ValueKey(message.id),
+                        message: message,
+                        isCancelled: cancelled,
+                        onCancelProposal: isArtist &&
+                                message.isMine &&
+                                message.isProposal &&
+                                !cancelled &&
+                                _cancellingProposalId == null
+                            ? () => _cancelProposal(message)
+                            : null,
+                      );
+                    },
                   );
                 },
               ),
@@ -811,8 +1039,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
+  final bool isCancelled;
+  final VoidCallback? onCancelProposal;
 
-  const _MessageBubble({super.key, required this.message});
+  const _MessageBubble({
+    super.key,
+    required this.message,
+    required this.isCancelled,
+    this.onCancelProposal,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -830,6 +1065,7 @@ class _MessageBubble extends StatelessWidget {
                   isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 Container(
+                  clipBehavior: message.isProposal ? Clip.antiAlias : Clip.none,
                   padding: message.isProposal
                       ? EdgeInsets.zero
                       : const EdgeInsets.symmetric(
@@ -840,14 +1076,18 @@ class _MessageBubble extends StatelessWidget {
                         : isMine
                             ? InkFlowColors.primary
                             : Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft:
-                          isMine ? const Radius.circular(16) : Radius.zero,
-                      bottomRight:
-                          isMine ? Radius.zero : const Radius.circular(16),
-                    ),
+                    borderRadius: message.isProposal
+                        ? BorderRadius.circular(20)
+                        : BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: isMine
+                                ? const Radius.circular(16)
+                                : Radius.zero,
+                            bottomRight: isMine
+                                ? Radius.zero
+                                : const Radius.circular(16),
+                          ),
                     boxShadow: [
                       BoxShadow(
                           color: Colors.black.withValues(alpha: 0.05),
@@ -859,7 +1099,11 @@ class _MessageBubble extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (message.proposal case final proposal?)
-                        _ProposalCard(proposal: proposal),
+                        _ProposalCard(
+                          proposal: proposal,
+                          isCancelled: isCancelled,
+                          onCancel: onCancelProposal,
+                        ),
                       if (message.hasAttachment)
                         _AttachmentContent(message: message),
                       if (message.content.isNotEmpty &&
@@ -892,77 +1136,184 @@ class _MessageBubble extends StatelessWidget {
 
 class _ProposalCard extends StatelessWidget {
   final Map<String, dynamic> proposal;
+  final bool isCancelled;
+  final VoidCallback? onCancel;
 
-  const _ProposalCard({required this.proposal});
+  const _ProposalCard({
+    required this.proposal,
+    required this.isCancelled,
+    this.onCancel,
+  });
 
   @override
   Widget build(BuildContext context) {
     final amount = double.tryParse(proposal['amount']?.toString() ?? '') ?? 0;
     final scheduledDate = DateTime.tryParse(proposal['date']?.toString() ?? '');
+    final scheduledTime = proposal['time']?.toString();
     final notes = proposal['notes']?.toString().trim() ?? '';
     final currency =
         NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$', decimalDigits: 2);
 
     return SizedBox(
-      width: 270,
+      width: 300,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-            decoration: const BoxDecoration(
-              color: InkFlowColors.primary,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: const Row(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            color: InkFlowColors.primary,
+            child: Row(
               children: [
-                Icon(Icons.request_quote_outlined,
-                    color: Color(0xFF63CCC7), size: 21),
-                SizedBox(width: 9),
-                Text('PROPOSTA',
+                const Icon(Icons.request_quote_outlined,
+                    color: InkFlowColors.accent, size: 20),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text('Proposta',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700)),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isCancelled
+                        ? InkFlowColors.error.withValues(alpha: .18)
+                        : InkFlowColors.accent.withValues(alpha: .18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isCancelled ? 'Cancelada' : 'Enviada',
                     style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .7)),
+                      color: isCancelled
+                          ? const Color(0xFFFFA7A7)
+                          : InkFlowColors.accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text('SERVIÇO',
+                    style: TextStyle(
+                        color: InkFlowColors.textMuted,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: .9)),
+                const SizedBox(height: 5),
                 Text(proposal['service']?.toString() ?? 'Serviço',
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                        child:
-                            _proposalValue('Valor', currency.format(amount))),
-                    if (scheduledDate != null)
-                      Expanded(
-                        child: _proposalValue('Data sugerida',
-                            DateFormat('dd/MM/yyyy').format(scheduledDate)),
-                      ),
-                  ],
-                ),
-                if (notes.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                        color: InkFlowColors.text,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 14),
+                const Text('Valor combinado',
+                    style: TextStyle(
+                        color: InkFlowColors.textMuted, fontSize: 11)),
+                const SizedBox(height: 3),
+                Text(currency.format(amount),
+                    style: TextStyle(
+                        color: isCancelled
+                            ? InkFlowColors.textMuted
+                            : InkFlowColors.accentDark,
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800)),
+                if (scheduledDate != null) ...[
+                  const SizedBox(height: 16),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF4F7F7),
-                      borderRadius: BorderRadius.circular(10),
+                      color: InkFlowColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.event_outlined,
+                            color: InkFlowColors.accentDark, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Data e horário',
+                                  style: TextStyle(
+                                      color: InkFlowColors.textMuted,
+                                      fontSize: 10)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${DateFormat('dd/MM/yyyy').format(scheduledDate)}${scheduledTime == null ? '' : ' às $scheduledTime'}',
+                                style: const TextStyle(
+                                    color: InkFlowColors.text,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (notes.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: InkFlowColors.background,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(notes,
                         style: const TextStyle(
-                            color: Color(0xFF526063),
-                            fontSize: 11,
-                            height: 1.35)),
+                            color: InkFlowColors.textMuted,
+                            fontSize: 12,
+                            height: 1.4)),
+                  ),
+                ],
+                if (isCancelled) ...[
+                  const SizedBox(height: 16),
+                  const Row(
+                    children: [
+                      Icon(Icons.info_outline_rounded,
+                          color: InkFlowColors.error, size: 17),
+                      SizedBox(width: 7),
+                      Expanded(
+                        child: Text('Esta proposta não está mais válida.',
+                            style: TextStyle(
+                                color: InkFlowColors.error,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  ),
+                ] else if (onCancel != null) ...[
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: onCancel,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: InkFlowColors.error,
+                        backgroundColor: const Color(0xFFFFF7F7),
+                        side: BorderSide(
+                            color: InkFlowColors.error.withValues(alpha: .25)),
+                        minimumSize: const Size(0, 44),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Cancelar proposta'),
+                    ),
                   ),
                 ],
               ],
@@ -972,18 +1323,6 @@ class _ProposalCard extends StatelessWidget {
       ),
     );
   }
-
-  Widget _proposalValue(String label, String value) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(fontSize: 9, color: Color(0xFF7B8491))),
-          const SizedBox(height: 2),
-          Text(value,
-              style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-        ],
-      );
 }
 
 class _AttachmentAction extends StatelessWidget {

@@ -1,8 +1,13 @@
 import 'dart:convert';
 
+bool isFutureProposalSchedule(
+        DateTime date, int hour, int minute, DateTime now) =>
+    DateTime(date.year, date.month, date.day, hour, minute).isAfter(now);
+
 /// Mensagem de uma conversa entre dois usuarios.
 class ChatMessage {
   static const proposalPrefix = '[INKFLOW_PROPOSAL]';
+  static const proposalCancellationPrefix = '[INKFLOW_PROPOSAL_CANCELLED]';
   final String id;
   final String senderId;
   final String receiverId;
@@ -76,10 +81,23 @@ class ChatMessage {
 
   bool get isProposal => proposal != null;
 
-  String get previewText => isProposal ? '📋 Proposta enviada' : content;
+  String? get cancelledProposalId =>
+      content.startsWith(proposalCancellationPrefix) &&
+              content.length > proposalCancellationPrefix.length
+          ? content.substring(proposalCancellationPrefix.length)
+          : null;
+
+  String get previewText => cancelledProposalId != null
+      ? 'Proposta cancelada'
+      : isProposal
+          ? '📋 Proposta enviada'
+          : content;
 
   static String encodeProposal(Map<String, dynamic> values) =>
       '$proposalPrefix${jsonEncode(values)}';
+
+  static String encodeProposalCancellation(String proposalId) =>
+      '$proposalCancellationPrefix$proposalId';
 
   String get timeLabel => '${createdAt.hour.toString().padLeft(2, '0')}:'
       '${createdAt.minute.toString().padLeft(2, '0')}';
