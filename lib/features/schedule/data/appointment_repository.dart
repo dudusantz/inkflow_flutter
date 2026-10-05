@@ -10,6 +10,12 @@ class AppointmentConflictException implements Exception {
   const AppointmentConflictException();
 }
 
+class ProposalAcceptanceException implements Exception {
+  final String message;
+
+  const ProposalAcceptanceException(this.message);
+}
+
 /// Codigo SQLSTATE de violacao de constraint de exclusao, disparado pela
 /// constraint `appointments_no_overlap` da migration 002.
 const _exclusionViolation = '23P01';
@@ -100,10 +106,58 @@ class AppointmentRepository {
     }
   }
 
+  Future<void> acceptProposalWithAnamnesis({
+    required String proposalId,
+    required Map<String, dynamic> answers,
+    required String signatureName,
+  }) async {
+    try {
+      await _supabase.rpc('accept_proposal_with_anamnesis', params: {
+        'p_proposal_id': proposalId,
+        'p_answers': answers,
+        'p_signature_name': signatureName,
+      });
+    } on PostgrestException catch (error) {
+      if (error.message.contains('APPOINTMENT_CONFLICT')) {
+        throw const AppointmentConflictException();
+      }
+      final message = switch (error.message) {
+        final text when text.contains('PROPOSAL_EXPIRED') =>
+          'O horário desta proposta já passou.',
+        final text when text.contains('PROPOSAL_UNAVAILABLE') =>
+          'Esta proposta não está mais disponível.',
+        final text when text.contains('PROPOSAL_NOT_FOUND') =>
+          'Não foi possível localizar esta proposta.',
+        _ => 'Não foi possível aceitar a proposta. Tente novamente.',
+      };
+      throw ProposalAcceptanceException(message);
+    }
+  }
+
   Future<void> setReminderEnabled(String appointmentId, bool enabled) async {
     await _supabase
         .from('appointments')
         .update({'reminder_enabled': enabled}).eq('id', appointmentId);
+  }
+
+  Future<SavedAnamnesis?> anamnesisForAppointment(String appointmentId) async {
+    final row = await _supabase
+        .from('appointment_anamneses')
+        .select('answers, signature_name, has_risk, signed_at')
+        .eq('appointment_id', appointmentId)
+        .maybeSingle();
+    if (row == null) return null;
+    return SavedAnamnesis.tryFromRow(Map<String, dynamic>.from(row));
+  }
+
+  Future<SavedAnamnesis?> anamnesisForProposal(String proposalId) async {
+    final appointment = await _supabase
+        .from('appointments')
+        .select('id')
+        .eq('proposal_id', proposalId)
+        .maybeSingle();
+    if (appointment == null) return null;
+    return anamnesisForAppointment(appointment['id'].toString());
   }
 
   /// Descarta linhas incompletas em vez de derrubar a tela inteira.

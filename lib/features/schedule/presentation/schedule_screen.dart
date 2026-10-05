@@ -17,6 +17,26 @@ final scheduleProvider = FutureProvider.autoDispose<List<Appointment>>((ref) {
       .listForUser(asArtist: isArtist);
 });
 
+void showSavedAnamnesisSheet(
+  BuildContext context, {
+  required String clientName,
+  required Future<SavedAnamnesis?> anamnesis,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: InkFlowColors.background,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    ),
+    builder: (_) => _SavedAnamnesisSheet(
+      clientName: clientName,
+      anamnesis: anamnesis,
+    ),
+  );
+}
+
 class ScheduleScreen extends ConsumerStatefulWidget {
   const ScheduleScreen({super.key});
 
@@ -195,6 +215,16 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     }
   }
 
+  void _openAnamnesis(Appointment appointment) {
+    showSavedAnamnesisSheet(
+      context,
+      clientName: appointment.clientName,
+      anamnesis: ref
+          .read(appointmentRepositoryProvider)
+          .anamnesisForAppointment(appointment.id),
+    );
+  }
+
   void _openSessionDetails(Appointment session, bool isArtist) {
     showModalBottomSheet<void>(
       context: context,
@@ -260,6 +290,20 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                   ],
                 ),
               const SizedBox(height: 24),
+              if (isArtist && session.anamnesisStatus != 'pendente') ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      _openAnamnesis(session);
+                    },
+                    icon: const Icon(Icons.assignment_outlined),
+                    label: const Text('Ver ficha de anamnese'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -563,6 +607,402 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       fillColor: Colors.grey.shade50,
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+    );
+  }
+}
+
+class _SavedAnamnesisSheet extends StatelessWidget {
+  final String clientName;
+  final Future<SavedAnamnesis?> anamnesis;
+
+  const _SavedAnamnesisSheet({
+    required this.clientName,
+    required this.anamnesis,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: .95,
+      minChildSize: .6,
+      maxChildSize: .96,
+      builder: (context, controller) => FutureBuilder<SavedAnamnesis?>(
+        future: anamnesis,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Não foi possível carregar a ficha.'),
+              ),
+            );
+          }
+          final record = snapshot.data;
+          if (record == null) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Nenhuma ficha foi encontrada para esta sessão.'),
+              ),
+            );
+          }
+          return _AnamnesisContent(
+            clientName: clientName,
+            record: record,
+            controller: controller,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AnamnesisContent extends StatelessWidget {
+  final String clientName;
+  final SavedAnamnesis record;
+  final ScrollController controller;
+
+  const _AnamnesisContent({
+    required this.clientName,
+    required this.record,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final answers = record.answers;
+    final conditions = <String>[
+      if (answers['usesAnticoagulants'] == true) 'Uso de anticoagulantes',
+      if (answers['hasDiabetes'] == true) 'Diabetes',
+      if (answers['hasHeartCondition'] == true) 'Problemas cardíacos',
+      if (answers['hasBloodDisorder'] == true) 'Distúrbios de coagulação',
+    ];
+
+    return ListView(
+      controller: controller,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
+      children: [
+        Center(
+          child: Container(
+            width: 38,
+            height: 4,
+            decoration: BoxDecoration(
+              color: InkFlowColors.textMuted.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: InkFlowColors.accent.withValues(alpha: .14),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: const Icon(
+                Icons.assignment_outlined,
+                color: InkFlowColors.accentDark,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ficha de anamnese',
+                    style: TextStyle(
+                      color: InkFlowColors.text,
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.4,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '$clientName · ${DateFormat('dd/MM/yyyy, HH:mm').format(record.signedAt)}',
+                    style: const TextStyle(
+                      color: InkFlowColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Fechar',
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color:
+                (record.hasRisk ? InkFlowColors.warning : InkFlowColors.success)
+                    .withValues(alpha: .10),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                record.hasRisk
+                    ? Icons.info_outline_rounded
+                    : Icons.check_circle_outline_rounded,
+                color: record.hasRisk
+                    ? InkFlowColors.warning
+                    : InkFlowColors.success,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Text(
+                  record.hasRisk
+                      ? 'Existem respostas que precisam de avaliação antes da sessão.'
+                      : 'Nenhum alerta de saúde foi informado.',
+                  style: const TextStyle(
+                    color: InkFlowColors.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        _section(
+          'Saúde geral',
+          [
+            _answer('Alergias', answers, 'hasAllergies', 'allergies'),
+            _answer('Medicamentos', answers, 'usesMedication', 'medications'),
+            _answer(
+                'Condição pré-existente', answers, 'hasDisease', 'diseases'),
+            _answer('Gravidez ou amamentação', answers,
+                'isPregnantOrBreastfeeding'),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _section(
+          'Pele e cicatrização',
+          [
+            _answer('Condição de pele', answers, 'hasSkinCondition',
+                'skinConditionDetails'),
+            _answer('Cicatrização difícil', answers, 'hasHealingIssue'),
+            _answer('Desmaio ou convulsão', answers, 'hasFaintingHistory'),
+            _answer('Baixa imunidade', answers, 'isImmunosuppressed'),
+            _answer('Procedimento recente', answers, 'hadRecentProcedure',
+                'recentProcedureDetails'),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _section(
+          'Condições importantes',
+          [_conditionTags(conditions)],
+        ),
+        if ((answers['emergencyContactName']?.toString().trim() ?? '')
+            .isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _section(
+            'Contato de emergência',
+            [
+              _detailLine(
+                Icons.person_outline_rounded,
+                '${answers['emergencyContactName']} · ${answers['emergencyContactPhone']}',
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 12),
+        _section(
+          'Assinatura eletrônica',
+          [
+            _detailLine(Icons.draw_outlined, record.signatureName,
+                strong: true),
+            _detailLine(Icons.verified_user_outlined,
+                'Declaração aceita pelo cliente.'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static Widget _section(String title, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 15, 16, 8),
+      decoration: BoxDecoration(
+        color: InkFlowColors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 3,
+                height: 17,
+                decoration: BoxDecoration(
+                  color: InkFlowColors.accentDark,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: InkFlowColors.text,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          for (var index = 0; index < children.length; index++) ...[
+            children[index],
+            if (index < children.length - 1) const Divider(height: 1),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static Widget _answer(
+    String label,
+    Map<String, dynamic> answers,
+    String key, [
+    String? detailKey,
+  ]) {
+    final yes = answers[key] == true;
+    final detail =
+        detailKey == null ? '' : answers[detailKey]?.toString().trim() ?? '';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: InkFlowColors.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: yes
+                      ? InkFlowColors.accent.withValues(alpha: .15)
+                      : InkFlowColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  yes ? 'Sim' : 'Não',
+                  style: TextStyle(
+                    color: yes
+                        ? InkFlowColors.accentDark
+                        : InkFlowColors.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (yes && detail.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              detail,
+              style: const TextStyle(
+                color: InkFlowColors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static Widget _conditionTags(List<String> conditions) {
+    if (conditions.isEmpty) {
+      return _detailLine(
+        Icons.check_circle_outline_rounded,
+        'Nenhuma condição adicional informada.',
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Wrap(
+        spacing: 7,
+        runSpacing: 7,
+        children: conditions
+            .map(
+              (condition) => Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: InkFlowColors.warning.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  condition,
+                  style: const TextStyle(
+                    color: InkFlowColors.text,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  static Widget _detailLine(
+    IconData icon,
+    String text, {
+    bool strong = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: InkFlowColors.accentDark),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: strong ? InkFlowColors.text : InkFlowColors.textMuted,
+                fontSize: 13,
+                fontWeight: strong ? FontWeight.w700 : FontWeight.w500,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

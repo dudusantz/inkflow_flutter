@@ -1,51 +1,79 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
+import 'package:inkflow/core/errors/error_utils.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
+import 'package:inkflow/features/schedule/data/appointment_repository.dart';
+import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
 
-/// Ficha de anamnese (RF07) — **em desenvolvimento**.
-///
-/// O formulário valida as respostas, mas nada é enviado ao servidor: não existe
-/// tabela nem política de acesso para dado de saúde, que a LGPD classifica como
-/// sensível. A tela anterior anunciava "dados protegidos e criptografados
-/// (LGPD)" enquanto descartava tudo no `Future.delayed` — a afirmação foi
-/// removida até a persistência existir de fato.
-class AnamnesisScreen extends StatefulWidget {
-  const AnamnesisScreen({super.key});
+class AnamnesisScreen extends ConsumerStatefulWidget {
+  final String proposalId;
+
+  const AnamnesisScreen({super.key, required this.proposalId});
 
   @override
-  State<AnamnesisScreen> createState() => _AnamnesisScreenState();
+  ConsumerState<AnamnesisScreen> createState() => _AnamnesisScreenState();
 }
 
-class _AnamnesisScreenState extends State<AnamnesisScreen> {
+class _AnamnesisScreenState extends ConsumerState<AnamnesisScreen> {
   final _formKey = GlobalKey<FormState>();
-
+  final _phoneMask = MaskTextInputFormatter(mask: '(##) #####-####');
   final _signatureController = TextEditingController();
   final _allergyController = TextEditingController();
   final _medicationController = TextEditingController();
   final _diseaseController = TextEditingController();
+  final _skinController = TextEditingController();
+  final _recentProcedureController = TextEditingController();
+  final _emergencyNameController = TextEditingController();
+  final _emergencyPhoneController = TextEditingController();
 
   bool _submitted = false;
+  bool _isSaving = false;
+  bool _showAnswerErrors = false;
   bool _termsError = false;
+  bool _terms = false;
 
   bool? _hasAllergies;
   bool? _usesMedication;
   bool? _hasDisease;
   bool? _isPregnant;
+  bool? _hasSkinCondition;
+  bool? _hasHealingIssue;
+  bool? _hasFaintingHistory;
+  bool? _isImmunosuppressed;
+  bool? _hadRecentProcedure;
 
   bool _anticoagulants = false;
   bool _diabetes = false;
   bool _heartCondition = false;
   bool _bloodDisorder = false;
-  bool _terms = false;
+
+  List<bool?> get _requiredAnswers => [
+        _hasAllergies,
+        _usesMedication,
+        _hasDisease,
+        _isPregnant,
+        _hasSkinCondition,
+        _hasHealingIssue,
+        _hasFaintingHistory,
+        _isImmunosuppressed,
+        _hadRecentProcedure,
+      ];
 
   bool get _hasRisk =>
       _anticoagulants ||
-      _isPregnant == true ||
-      _bloodDisorder ||
+      _diabetes ||
       _heartCondition ||
-      _diabetes;
+      _bloodDisorder ||
+      _isPregnant == true ||
+      _hasSkinCondition == true ||
+      _hasHealingIssue == true ||
+      _hasFaintingHistory == true ||
+      _isImmunosuppressed == true ||
+      _hadRecentProcedure == true;
 
   @override
   void dispose() {
@@ -53,355 +81,804 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     _allergyController.dispose();
     _medicationController.dispose();
     _diseaseController.dispose();
+    _skinController.dispose();
+    _recentProcedureController.dispose();
+    _emergencyNameController.dispose();
+    _emergencyPhoneController.dispose();
     super.dispose();
   }
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: InkFlowColors.error,
-      ),
+      SnackBar(content: Text(message), backgroundColor: InkFlowColors.error),
     );
   }
 
   void _handleSubmit() {
-    setState(() => _termsError = false);
-
+    setState(() {
+      _showAnswerErrors = true;
+      _termsError = !_terms;
+    });
+    if (_requiredAnswers.any((answer) => answer == null)) {
+      _showError('Responda todas as perguntas antes de continuar.');
+      return;
+    }
     if (!_terms) {
-      setState(() => _termsError = true);
-      _showError('Você precisa aceitar a declaração para enviar.');
+      _showError('Você precisa aceitar a declaração para continuar.');
       return;
     }
-
-    if (_hasAllergies == null ||
-        _usesMedication == null ||
-        _hasDisease == null ||
-        _isPregnant == null) {
-      _showError('Responda todas as perguntas de saúde.');
-      return;
-    }
-
     if (!_formKey.currentState!.validate()) return;
-
+    FocusScope.of(context).unfocus();
     setState(() => _submitted = true);
+  }
+
+  Future<void> _confirmAcceptance() async {
+    setState(() => _isSaving = true);
+    try {
+      await ref.read(appointmentRepositoryProvider).acceptProposalWithAnamnesis(
+        proposalId: widget.proposalId,
+        signatureName: _signatureController.text.trim(),
+        answers: {
+          'hasAllergies': _hasAllergies,
+          'allergies': _allergyController.text.trim(),
+          'usesMedication': _usesMedication,
+          'medications': _medicationController.text.trim(),
+          'hasDisease': _hasDisease,
+          'diseases': _diseaseController.text.trim(),
+          'isPregnantOrBreastfeeding': _isPregnant,
+          'hasSkinCondition': _hasSkinCondition,
+          'skinConditionDetails': _skinController.text.trim(),
+          'hasHealingIssue': _hasHealingIssue,
+          'hasFaintingHistory': _hasFaintingHistory,
+          'isImmunosuppressed': _isImmunosuppressed,
+          'hadRecentProcedure': _hadRecentProcedure,
+          'recentProcedureDetails': _recentProcedureController.text.trim(),
+          'usesAnticoagulants': _anticoagulants,
+          'hasDiabetes': _diabetes,
+          'hasHeartCondition': _heartCondition,
+          'hasBloodDisorder': _bloodDisorder,
+          'emergencyContactName': _emergencyNameController.text.trim(),
+          'emergencyContactPhone': _emergencyPhoneController.text.trim(),
+          'acceptedDeclaration': _terms,
+        },
+      );
+      ref.invalidate(scheduleProvider);
+      if (mounted) context.pop(true);
+    } on AppointmentConflictException {
+      if (mounted) {
+        _showError(
+            'Este horário acabou de ser ocupado. Peça uma nova proposta.');
+      }
+    } on ProposalAcceptanceException catch (error) {
+      if (mounted) _showError(error.message);
+    } catch (error) {
+      if (mounted) _showError(userFriendlyErrorMessage(error));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          _buildHeader(),
-          const UnderDevelopmentBanner(
-            message: 'Pré-visualização: as respostas não são enviadas nem '
-                'armazenadas em nenhum servidor.',
-          ),
-          Expanded(child: _submitted ? _buildResult() : _buildForm()),
-        ],
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Voltar',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/home'),
+        ),
+        title: Text(_submitted ? 'Revisar anamnese' : 'Ficha de anamnese'),
       ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      color: InkFlowColors.primary,
-      padding: EdgeInsets.fromLTRB(
-        8,
-        MediaQuery.of(context).padding.top + 4,
-        16,
-        16,
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new,
-                color: Colors.white, size: 20),
-            tooltip: 'Voltar',
-            onPressed: () =>
-                context.canPop() ? context.pop() : context.go('/home'),
-          ),
-          const Expanded(
-            child: Text(
-              'Ficha de Anamnese',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResult() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Icon(
-            _hasRisk ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-            color: _hasRisk ? InkFlowColors.error : InkFlowColors.success,
-            size: 64,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _hasRisk ? 'Respostas com alerta médico' : 'Respostas preenchidas',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1F2937),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          if (_hasRisk)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: InkFlowColors.error.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: InkFlowColors.error.withValues(alpha: 0.2)),
-              ),
-              child: const Text(
-                'Você informou condições de saúde críticas. Este procedimento '
-                'exige laudo médico de liberação antes de prosseguir.',
-                style: TextStyle(color: Color(0xFFDC2626), fontSize: 13),
-              ),
-            ),
-          const SizedBox(height: 24),
-          _buildSummary(),
-          const SizedBox(height: 32),
-          InkButton(
-            label: 'Voltar para a Agenda',
-            onPressed: () => context.go('/schedule'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Resumo local do que foi preenchido. Deixa claro que a informação existe
-  /// apenas nesta sessão.
-  Widget _buildSummary() {
-    final lines = <String>[
-      'Assinatura: ${_signatureController.text.trim()}',
-      if (_hasAllergies == true && _allergyController.text.trim().isNotEmpty)
-        'Alergias: ${_allergyController.text.trim()}',
-      if (_usesMedication == true &&
-          _medicationController.text.trim().isNotEmpty)
-        'Medicamentos: ${_medicationController.text.trim()}',
-      if (_hasDisease == true && _diseaseController.text.trim().isNotEmpty)
-        'Condições: ${_diseaseController.text.trim()}',
-    ];
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Resumo desta sessão',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          const SizedBox(height: 8),
-          ...lines.map(
-            (line) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(line,
-                  style:
-                      const TextStyle(fontSize: 13, color: Color(0xFF4B5563))),
-            ),
-          ),
-        ],
-      ),
+      body: _submitted ? _buildReview() : _buildForm(),
+      bottomNavigationBar:
+          _submitted ? _buildReviewFooter() : _buildFormFooter(),
     );
   }
 
   Widget _buildForm() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Form(
-        key: _formKey,
+    return Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _yesNoQuestion(
-              'Possui alergias conhecidas?',
-              _hasAllergies,
-              (v) => setState(() => _hasAllergies = v),
+            _buildIntro(),
+            const SizedBox(height: 20),
+            _sectionCard(
+              icon: Icons.health_and_safety_outlined,
+              title: 'Saúde geral',
+              description:
+                  'Informe condições que podem alterar os cuidados da sessão.',
+              children: [
+                _question('Possui alergias conhecidas?', _hasAllergies,
+                    (value) => setState(() => _hasAllergies = value)),
+                if (_hasAllergies == true)
+                  _detailsField(
+                    _allergyController,
+                    'Quais alergias?',
+                    'Informe suas alergias',
+                  ),
+                _divider(),
+                _question('Faz uso contínuo de medicamentos?', _usesMedication,
+                    (value) => setState(() => _usesMedication = value)),
+                if (_usesMedication == true)
+                  _detailsField(
+                    _medicationController,
+                    'Quais medicamentos?',
+                    'Informe os medicamentos',
+                  ),
+                _divider(),
+                _question(
+                    'Possui doença ou condição pré-existente?',
+                    _hasDisease,
+                    (value) => setState(() => _hasDisease = value)),
+                if (_hasDisease == true)
+                  _detailsField(
+                    _diseaseController,
+                    'Descreva a condição',
+                    'Descreva a condição',
+                  ),
+                _divider(),
+                _question('Está grávida ou amamentando?', _isPregnant,
+                    (value) => setState(() => _isPregnant = value)),
+              ],
             ),
-            if (_hasAllergies == true) ...[
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _allergyController,
-                decoration: _inputDecoration('Detalhe suas alergias'),
-              ),
-            ],
-            const SizedBox(height: 16),
-            _yesNoQuestion(
-              'Faz uso de medicamentos?',
-              _usesMedication,
-              (v) => setState(() => _usesMedication = v),
+            const SizedBox(height: 14),
+            _sectionCard(
+              icon: Icons.healing_outlined,
+              title: 'Pele e cicatrização',
+              description:
+                  'Ajude o artista a avaliar a segurança do procedimento.',
+              children: [
+                _question(
+                    'Possui irritação, ferida ou condição de pele na região?',
+                    _hasSkinCondition,
+                    (value) => setState(() => _hasSkinCondition = value)),
+                if (_hasSkinCondition == true)
+                  _detailsField(
+                    _skinController,
+                    'Descreva a condição e a região',
+                    'Descreva a condição da pele',
+                  ),
+                _divider(),
+                _question(
+                    'Já teve queloide ou dificuldade de cicatrização?',
+                    _hasHealingIssue,
+                    (value) => setState(() => _hasHealingIssue = value)),
+                _divider(),
+                _question(
+                    'Já teve desmaio, convulsão ou mal-estar em procedimentos?',
+                    _hasFaintingHistory,
+                    (value) => setState(() => _hasFaintingHistory = value)),
+                _divider(),
+                _question(
+                    'Possui baixa imunidade ou faz tratamento imunossupressor?',
+                    _isImmunosuppressed,
+                    (value) => setState(() => _isImmunosuppressed = value)),
+                _divider(),
+                _question(
+                    'Fez cirurgia ou procedimento médico nos últimos 6 meses?',
+                    _hadRecentProcedure,
+                    (value) => setState(() => _hadRecentProcedure = value)),
+                if (_hadRecentProcedure == true)
+                  _detailsField(
+                    _recentProcedureController,
+                    'Qual procedimento e quando?',
+                    'Informe o procedimento recente',
+                  ),
+              ],
             ),
-            if (_usesMedication == true) ...[
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _medicationController,
-                decoration: _inputDecoration('Quais medicamentos?'),
-              ),
-            ],
-            const SizedBox(height: 16),
-            _yesNoQuestion(
-              'Possui doenças pré-existentes?',
-              _hasDisease,
-              (v) => setState(() => _hasDisease = v),
-            ),
-            if (_hasDisease == true) ...[
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _diseaseController,
-                decoration: _inputDecoration('Descreva as condições'),
-              ),
-            ],
-            const SizedBox(height: 16),
-            _yesNoQuestion(
-              'Está grávida ou amamentando?',
-              _isPregnant,
-              (v) => setState(() => _isPregnant = v),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Condições adicionais',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            _buildCheckbox('Uso de anticoagulantes', _anticoagulants,
-                (v) => setState(() => _anticoagulants = v)),
-            _buildCheckbox(
-                'Diabetes', _diabetes, (v) => setState(() => _diabetes = v)),
-            _buildCheckbox('Problemas cardíacos', _heartCondition,
-                (v) => setState(() => _heartCondition = v)),
-            _buildCheckbox('Distúrbios de coagulação', _bloodDisorder,
-                (v) => setState(() => _bloodDisorder = v)),
-            const SizedBox(height: 24),
-            const Text(
-              'Assinatura',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _signatureController,
-              decoration: _inputDecoration('Seu nome completo *'),
-              validator: (v) => v == null || v.trim().isEmpty
-                  ? 'Assinatura obrigatória'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: _termsError
-                    ? InkFlowColors.error.withValues(alpha: 0.08)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _termsError ? InkFlowColors.error : Colors.transparent,
-                  width: 1.5,
+            const SizedBox(height: 14),
+            _sectionCard(
+              icon: Icons.fact_check_outlined,
+              title: 'Condições importantes',
+              description: 'Marque apenas as opções que se aplicam a você.',
+              children: [
+                _condition('Uso de anticoagulantes', _anticoagulants,
+                    (value) => setState(() => _anticoagulants = value)),
+                _condition('Diabetes', _diabetes,
+                    (value) => setState(() => _diabetes = value)),
+                _condition('Problemas cardíacos', _heartCondition,
+                    (value) => setState(() => _heartCondition = value)),
+                _condition(
+                  'Distúrbios de coagulação',
+                  _bloodDisorder,
+                  (value) => setState(() => _bloodDisorder = value),
+                  last: true,
                 ),
-              ),
-              child: CheckboxListTile(
-                title: const Text(
-                  'Declaro que as informações são verdadeiras.',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                value: _terms,
-                onChanged: (v) => setState(() {
-                  _terms = v ?? false;
-                  _termsError = false;
-                }),
-                controlAffinity: ListTileControlAffinity.leading,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                activeColor: InkFlowColors.accent,
-              ),
+              ],
             ),
-            if (_termsError)
-              const Padding(
-                padding: EdgeInsets.only(left: 8, top: 4),
-                child: Text(
-                  'Aceite a declaração para continuar.',
-                  style: TextStyle(color: InkFlowColors.error, fontSize: 11),
+            const SizedBox(height: 14),
+            _sectionCard(
+              icon: Icons.contact_phone_outlined,
+              title: 'Contato de emergência',
+              description:
+                  'Opcional. Será usado apenas se houver necessidade durante a sessão.',
+              children: [
+                TextFormField(
+                  controller: _emergencyNameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration:
+                      const InputDecoration(labelText: 'Nome do contato'),
                 ),
-              ),
-            const SizedBox(height: 24),
-            InkButton(label: 'Revisar Respostas', onPressed: _handleSubmit),
-            const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _emergencyPhoneController,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [_phoneMask],
+                  decoration: const InputDecoration(labelText: 'Telefone'),
+                  validator: (value) {
+                    final hasName =
+                        _emergencyNameController.text.trim().isNotEmpty;
+                    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+                    if (hasName && digits.length < 10) {
+                      return 'Informe um telefone válido';
+                    }
+                    if (!hasName && digits.isNotEmpty) {
+                      return 'Informe o nome do contato';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _sectionCard(
+              icon: Icons.draw_outlined,
+              title: 'Declaração e assinatura',
+              description:
+                  'Digite seu nome completo como assinatura eletrônica.',
+              children: [
+                TextFormField(
+                  controller: _signatureController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Nome completo *',
+                    hintText: 'Como consta no documento',
+                  ),
+                  validator: (value) => value == null || value.trim().length < 3
+                      ? 'Informe seu nome completo'
+                      : null,
+                ),
+                const SizedBox(height: 14),
+                _buildDeclaration(),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  /// Par Sim/Não como `SegmentedButton`.
-  ///
-  /// `RadioListTile.groupValue`/`onChanged` estão depreciados e quebram numa
-  /// versão futura do Flutter.
-  Widget _yesNoQuestion(
-    String question,
+  Widget _buildIntro() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: InkFlowColors.accent.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _IconBox(icon: Icons.lock_outline_rounded),
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sua segurança vem primeiro',
+                  style: TextStyle(
+                    color: InkFlowColors.text,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -.25,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Leva cerca de 3 minutos. As respostas ficam disponíveis apenas para você e o tatuador responsável.',
+                  style: TextStyle(
+                    color: InkFlowColors.textMuted,
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+      decoration: BoxDecoration(
+        color: InkFlowColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: InkFlowColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _IconBox(icon: icon, compact: true),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: InkFlowColors.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: InkFlowColors.textMuted,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _question(
+    String label,
     bool? value,
     ValueChanged<bool> onChanged,
   ) {
+    final hasError = _showAnswerErrors && value == null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(question,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        SegmentedButton<bool>(
-          segments: const [
-            ButtonSegment(value: true, label: Text('Sim')),
-            ButtonSegment(value: false, label: Text('Não')),
-          ],
-          selected: value == null ? <bool>{} : {value},
-          emptySelectionAllowed: true,
-          showSelectedIcon: false,
-          onSelectionChanged: (selection) {
-            if (selection.isNotEmpty) onChanged(selection.first);
-          },
+        Text(
+          label,
+          style: const TextStyle(
+            color: InkFlowColors.text,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            height: 1.35,
+          ),
         ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _answerButton(
+                label: 'Sim',
+                selected: value == true,
+                onTap: () => onChanged(true),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _answerButton(
+                label: 'Não',
+                selected: value == false,
+                onTap: () => onChanged(false),
+              ),
+            ),
+          ],
+        ),
+        if (hasError)
+          const Padding(
+            padding: EdgeInsets.only(top: 7),
+            child: Text(
+              'Selecione uma resposta',
+              style: TextStyle(color: InkFlowColors.error, fontSize: 11),
+            ),
+          ),
       ],
     );
   }
 
-  InputDecoration _inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      filled: true,
-      fillColor: Colors.grey.shade50,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
+  Widget _answerButton({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected
+          ? InkFlowColors.accent.withValues(alpha: .17)
+          : InkFlowColors.background,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? InkFlowColors.accentDark : InkFlowColors.border,
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (selected) ...[
+                const Icon(Icons.check_rounded,
+                    size: 17, color: InkFlowColors.accentDark),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color:
+                      selected ? InkFlowColors.accentDark : InkFlowColors.text,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildCheckbox(
+  Widget _detailsField(
+    TextEditingController controller,
+    String label,
+    String error,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: TextFormField(
+        controller: controller,
+        minLines: 2,
+        maxLines: 4,
+        decoration: InputDecoration(labelText: label, alignLabelWithHint: true),
+        validator: (value) =>
+            value == null || value.trim().isEmpty ? error : null,
+      ),
+    );
+  }
+
+  Widget _divider() => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 18),
+        child: Divider(),
+      );
+
+  Widget _condition(
     String title,
     bool value,
-    ValueChanged<bool> onChanged,
-  ) {
-    return CheckboxListTile(
-      title: Text(title, style: const TextStyle(fontSize: 14)),
-      value: value,
-      onChanged: (v) => onChanged(v ?? false),
-      controlAffinity: ListTileControlAffinity.leading,
-      contentPadding: EdgeInsets.zero,
-      dense: true,
+    ValueChanged<bool> onChanged, {
+    bool last = false,
+  }) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => onChanged(!value),
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: value,
+                  onChanged: (checked) => onChanged(checked ?? false),
+                  activeColor: InkFlowColors.accentDark,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: InkFlowColors.text,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (!last) const Divider(indent: 48),
+      ],
+    );
+  }
+
+  Widget _buildDeclaration() {
+    return InkWell(
+      onTap: () => setState(() {
+        _terms = !_terms;
+        _termsError = false;
+      }),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: _termsError
+              ? InkFlowColors.error.withValues(alpha: .06)
+              : InkFlowColors.background,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _termsError ? InkFlowColors.error : InkFlowColors.border,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: _terms,
+              onChanged: (value) => setState(() {
+                _terms = value ?? false;
+                _termsError = false;
+              }),
+              activeColor: InkFlowColors.accentDark,
+            ),
+            const SizedBox(width: 5),
+            const Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(top: 7),
+                child: Text(
+                  'Declaro que as informações são verdadeiras e me comprometo a comunicar qualquer mudança antes da sessão.',
+                  style: TextStyle(
+                    color: InkFlowColors.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormFooter() => _Footer(
+        child: InkButton(label: 'Revisar respostas', onPressed: _handleSubmit),
+      );
+
+  Widget _buildReview() {
+    final tone = _hasRisk ? InkFlowColors.warning : InkFlowColors.accentDark;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: tone.withValues(alpha: .11),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _IconBox(
+                  icon: _hasRisk
+                      ? Icons.info_outline_rounded
+                      : Icons.check_circle_outline_rounded,
+                  color: tone,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _hasRisk ? 'Revisão necessária' : 'Tudo preenchido',
+                        style: const TextStyle(
+                          color: InkFlowColors.text,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        _hasRisk
+                            ? 'Há respostas que o tatuador deverá avaliar antes da sessão.'
+                            : 'Confira os dados antes de assinar e aceitar a proposta.',
+                        style: const TextStyle(
+                          color: InkFlowColors.textMuted,
+                          fontSize: 13,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          _buildSummary(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummary() {
+    final conditions = <String>[
+      if (_anticoagulants) 'Anticoagulantes',
+      if (_diabetes) 'Diabetes',
+      if (_heartCondition) 'Problemas cardíacos',
+      if (_bloodDisorder) 'Distúrbios de coagulação',
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: InkFlowColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: InkFlowColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Resumo das respostas',
+            style: TextStyle(
+              color: InkFlowColors.text,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 15),
+          _summary('Alergias',
+              _answerWithDetail(_hasAllergies, _allergyController.text)),
+          _summary('Medicamentos',
+              _answerWithDetail(_usesMedication, _medicationController.text)),
+          _summary('Condição pré-existente',
+              _answerWithDetail(_hasDisease, _diseaseController.text)),
+          _summary('Gravidez ou amamentação', _yesNo(_isPregnant)),
+          _summary('Condição de pele',
+              _answerWithDetail(_hasSkinCondition, _skinController.text)),
+          _summary('Cicatrização difícil', _yesNo(_hasHealingIssue)),
+          _summary('Desmaio ou convulsão', _yesNo(_hasFaintingHistory)),
+          _summary('Baixa imunidade', _yesNo(_isImmunosuppressed)),
+          _summary(
+              'Procedimento recente',
+              _answerWithDetail(
+                  _hadRecentProcedure, _recentProcedureController.text)),
+          _summary('Outras condições',
+              conditions.isEmpty ? 'Nenhuma informada' : conditions.join(', ')),
+          if (_emergencyNameController.text.trim().isNotEmpty)
+            _summary('Contato de emergência',
+                '${_emergencyNameController.text.trim()} · ${_emergencyPhoneController.text.trim()}'),
+          const Divider(height: 28),
+          _summary('Assinatura', _signatureController.text.trim(), last: true),
+        ],
+      ),
+    );
+  }
+
+  String _yesNo(bool? value) => value == true ? 'Sim' : 'Não';
+
+  String _answerWithDetail(bool? value, String detail) =>
+      value == true ? 'Sim · ${detail.trim()}' : 'Não';
+
+  Widget _summary(String label, String value, {bool last = false}) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: last ? 0 : 13),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 4,
+            child: Text(label,
+                style: const TextStyle(
+                    color: InkFlowColors.textMuted, fontSize: 12)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 6,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: InkFlowColors.text,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewFooter() => _Footer(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkButton(
+              label: 'Assinar e aceitar proposta',
+              isLoading: _isSaving,
+              onPressed: _confirmAcceptance,
+            ),
+            const SizedBox(height: 4),
+            TextButton(
+              onPressed:
+                  _isSaving ? null : () => setState(() => _submitted = false),
+              child: const Text('Editar respostas'),
+            ),
+          ],
+        ),
+      );
+}
+
+class _IconBox extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final bool compact;
+
+  const _IconBox({
+    required this.icon,
+    this.color = InkFlowColors.accentDark,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final size = compact ? 36.0 : 42.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(compact ? 11 : 13),
+      ),
+      child: Icon(icon, color: color, size: compact ? 19 : 21),
+    );
+  }
+}
+
+class _Footer extends StatelessWidget {
+  final Widget child;
+
+  const _Footer({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        MediaQuery.of(context).padding.bottom + 12,
+      ),
+      decoration: const BoxDecoration(
+        color: InkFlowColors.background,
+        border: Border(top: BorderSide(color: InkFlowColors.border)),
+      ),
+      child: child,
     );
   }
 }

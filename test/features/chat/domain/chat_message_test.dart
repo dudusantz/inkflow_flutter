@@ -26,6 +26,27 @@ void main() {
     expect(message.isProposal, isFalse);
   });
 
+  test('aceite e recusa referenciam a proposta e aparecem na prévia', () {
+    ChatMessage response(bool accepted) => ChatMessage(
+          id: accepted ? 'accept-1' : 'reject-1',
+          senderId: 'client',
+          receiverId: 'artist',
+          content: ChatMessage.encodeProposalResponse(
+            'proposal-1',
+            accepted: accepted,
+          ),
+          createdAt: DateTime(2026, 9, 26),
+          isMine: true,
+        );
+
+    expect(response(true).proposalEventId, 'proposal-1');
+    expect(response(true).proposalEventStatus, ChatMessage.proposalAccepted);
+    expect(response(true).previewText, 'Proposta aceita');
+    expect(response(false).proposalEventId, 'proposal-1');
+    expect(response(false).proposalEventStatus, ChatMessage.proposalRejected);
+    expect(response(false).previewText, 'Proposta recusada');
+  });
+
   test('codifica e identifica uma proposta no chat', () {
     final content = ChatMessage.encodeProposal({
       'service': 'Tatuagem autoral',

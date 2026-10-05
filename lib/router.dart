@@ -121,8 +121,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/schedule',
           builder: (context, state) => const ScheduleScreen()),
       GoRoute(
-          path: '/anamnesis',
-          builder: (context, state) => const AnamnesisScreen()),
+        path: '/anamnesis',
+        redirect: (context, state) =>
+            state.uri.queryParameters['proposalId']?.isEmpty ?? true
+                ? '/inbox'
+                : null,
+        builder: (context, state) => AnamnesisScreen(
+          proposalId: state.uri.queryParameters['proposalId']!,
+        ),
+      ),
       GoRoute(
           path: '/reminders',
           builder: (context, state) => const RemindersScreen()),

@@ -17,6 +17,8 @@ import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/chat/data/chat_repository.dart';
 import 'package:inkflow/features/chat/domain/chat_message.dart';
 import 'package:inkflow/features/profile/providers/profile_provider.dart';
+import 'package:inkflow/features/schedule/data/appointment_repository.dart';
+import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
 
 final chatStreamProvider = StreamProvider.autoDispose
     .family<List<ChatMessage>, String>((ref, contactId) {
@@ -43,8 +45,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _picker = ImagePicker();
   final _recorder = AudioRecorder();
   bool _isSending = false;
-  String? _cancellingProposalId;
-  final _locallyCancelledProposalIds = <String>{};
+  String? _updatingProposalId;
+  final _localProposalStatuses = <String, String>{};
   bool _isRecording = false;
   bool _isRecordingPaused = false;
   int _recordingSeconds = 0;
@@ -422,6 +424,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final notesController = TextEditingController();
     DateTime? scheduledDate;
     TimeOfDay? scheduledTime;
+    var durationMinutes = 60;
     var showScheduleErrors = false;
     var scheduleInPast = false;
     var sending = false;
@@ -599,6 +602,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
+                const Text('Duração estimada *',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  initialValue: durationMinutes,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.timelapse_rounded),
+                  ),
+                  items: const [30, 60, 90, 120, 180, 240]
+                      .map((minutes) => DropdownMenuItem(
+                            value: minutes,
+                            child: Text(minutes < 60
+                                ? '$minutes min'
+                                : minutes % 60 == 0
+                                    ? '${minutes ~/ 60} h'
+                                    : '${minutes ~/ 60} h ${minutes % 60} min'),
+                          ))
+                      .toList(),
+                  onChanged: sending
+                      ? null
+                      : (value) => setSheetState(
+                            () => durationMinutes = value ?? 60,
+                          ),
+                ),
+                const SizedBox(height: 18),
                 const Text('Observações',
                     style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
@@ -631,6 +659,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     if (!isFuture) {
                       return;
                     }
+                    final startsAt = DateTime(
+                      scheduledDate!.year,
+                      scheduledDate!.month,
+                      scheduledDate!.day,
+                      scheduledTime!.hour,
+                      scheduledTime!.minute,
+                    );
                     setSheetState(() => sending = true);
                     final amount = double.parse(amountController.text
                         .replaceAll('.', '')
@@ -644,6 +679,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               'date': scheduledDate!.toIso8601String(),
                               'time':
                                   '${scheduledTime!.hour.toString().padLeft(2, '0')}:${scheduledTime!.minute.toString().padLeft(2, '0')}',
+                              'startsAt': startsAt.toUtc().toIso8601String(),
+                              'durationMinutes': durationMinutes,
                               'notes': notesController.text.trim(),
                             }),
                           );
@@ -668,7 +705,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     notesController.dispose();
   }
 
-  Future<void> _cancelProposal(ChatMessage message) async {
+  Future<void> _openAnamnesis(ChatMessage message) async {
+    final accepted = await context.push<bool>(
+      '/anamnesis?proposalId=${Uri.encodeQueryComponent(message.id)}',
+    );
+    if (accepted == true && mounted) {
+      setState(() =>
+          _localProposalStatuses[message.id] = ChatMessage.proposalAccepted);
+    }
+  }
+
+  void _openSavedAnamnesis(ChatMessage message, String clientName) {
+    showSavedAnamnesisSheet(
+      context,
+      clientName: clientName,
+      anamnesis: ref
+          .read(appointmentRepositoryProvider)
+          .anamnesisForProposal(message.id),
+    );
+  }
+
+  Future<void> _updateProposalStatus(ChatMessage message, String status) async {
+    final isCancellation = status == ChatMessage.proposalCancelled;
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: InkFlowColors.background,
@@ -683,15 +741,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Cancelar proposta?',
-                  style: TextStyle(
+              Text(isCancellation ? 'Cancelar proposta?' : 'Recusar proposta?',
+                  style: const TextStyle(
                       color: InkFlowColors.text,
                       fontSize: 21,
                       fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
-              const Text(
-                'Ela continuará no histórico da conversa, identificada como cancelada.',
-                style: TextStyle(
+              Text(
+                isCancellation
+                    ? 'Ela continuará no histórico da conversa, identificada como cancelada.'
+                    : 'O tatuador será informado e a proposta continuará no histórico.',
+                style: const TextStyle(
                     color: InkFlowColors.textMuted, fontSize: 14, height: 1.45),
               ),
               const SizedBox(height: 24),
@@ -705,7 +765,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                child: const Text('Cancelar proposta'),
+                child: Text(
+                    isCancellation ? 'Cancelar proposta' : 'Recusar proposta'),
               ),
               const SizedBox(height: 6),
               SizedBox(
@@ -715,7 +776,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   style: TextButton.styleFrom(
                     foregroundColor: InkFlowColors.textMuted,
                   ),
-                  child: const Text('Manter proposta'),
+                  child: Text(isCancellation ? 'Manter proposta' : 'Voltar'),
                 ),
               ),
             ],
@@ -723,25 +784,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
       ),
     );
-    if (confirmed != true || !mounted || _cancellingProposalId != null) {
+    if (confirmed != true || !mounted || _updatingProposalId != null) {
       return;
     }
 
-    setState(() => _cancellingProposalId = message.id);
+    setState(() => _updatingProposalId = message.id);
     try {
       await ref.read(chatRepositoryProvider).sendMessage(
             receiverId: widget.contactId,
-            content: ChatMessage.encodeProposalCancellation(message.id),
+            content: isCancellation
+                ? ChatMessage.encodeProposalCancellation(message.id)
+                : ChatMessage.encodeProposalResponse(
+                    message.id,
+                    accepted: false,
+                  ),
           );
       if (mounted) {
-        setState(() => _locallyCancelledProposalIds.add(message.id));
+        setState(() => _localProposalStatuses[message.id] = status);
       }
     } catch (error) {
       if (mounted) {
         showErrorSnackBar(context, userFriendlyErrorMessage(error));
       }
     } finally {
-      if (mounted) setState(() => _cancellingProposalId = null);
+      if (mounted) setState(() => _updatingProposalId = null);
     }
   }
 
@@ -769,16 +835,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ref.invalidate(chatStreamProvider(widget.contactId)),
                 ),
                 data: (messages) {
-                  final cancelledProposals = messages
-                      .where((message) => message.cancelledProposalId != null)
-                      .map((message) => (
-                            message.cancelledProposalId!,
-                            message.senderId,
-                            message.receiverId,
-                          ))
-                      .toSet();
+                  final proposals = <String, ChatMessage>{
+                    for (final message in messages)
+                      if (message.isProposal) message.id: message,
+                  };
+                  final proposalStatuses = <String, String>{};
+                  for (final event in messages) {
+                    final proposalId = event.proposalEventId;
+                    final proposal = proposals[proposalId];
+                    final status = event.proposalEventStatus;
+                    if (proposalId == null ||
+                        proposal == null ||
+                        status == null ||
+                        proposalStatuses.containsKey(proposalId)) {
+                      continue;
+                    }
+                    final isValidCancellation =
+                        status == ChatMessage.proposalCancelled &&
+                            event.senderId == proposal.senderId &&
+                            event.receiverId == proposal.receiverId;
+                    final isValidResponse =
+                        status != ChatMessage.proposalCancelled &&
+                            event.senderId == proposal.receiverId &&
+                            event.receiverId == proposal.senderId;
+                    if (isValidCancellation || isValidResponse) {
+                      proposalStatuses[proposalId] = status;
+                    }
+                  }
                   final visibleMessages = messages
-                      .where((message) => message.cancelledProposalId == null)
+                      .where((message) => message.proposalEventId == null)
                       .toList();
                   if (visibleMessages.isEmpty) {
                     return const Center(
@@ -794,22 +879,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     itemCount: visibleMessages.length,
                     itemBuilder: (context, index) {
                       final message = visibleMessages[index];
-                      final cancelled = cancelledProposals.contains((
-                            message.id,
-                            message.senderId,
-                            message.receiverId,
-                          )) ||
-                          _locallyCancelledProposalIds.contains(message.id);
+                      final status = proposalStatuses[message.id] ??
+                          _localProposalStatuses[message.id] ??
+                          ChatMessage.proposalPending;
+                      final isPending = status == ChatMessage.proposalPending;
                       return _MessageBubble(
                         key: ValueKey(message.id),
                         message: message,
-                        isCancelled: cancelled,
+                        proposalStatus: status,
                         onCancelProposal: isArtist &&
                                 message.isMine &&
                                 message.isProposal &&
-                                !cancelled &&
-                                _cancellingProposalId == null
-                            ? () => _cancelProposal(message)
+                                isPending &&
+                                _updatingProposalId == null
+                            ? () => _updateProposalStatus(
+                                  message,
+                                  ChatMessage.proposalCancelled,
+                                )
+                            : null,
+                        onAcceptProposal: !isArtist &&
+                                !message.isMine &&
+                                message.isProposal &&
+                                isPending &&
+                                _updatingProposalId == null
+                            ? () => _openAnamnesis(message)
+                            : null,
+                        onRejectProposal: !isArtist &&
+                                !message.isMine &&
+                                message.isProposal &&
+                                isPending &&
+                                _updatingProposalId == null
+                            ? () => _updateProposalStatus(
+                                  message,
+                                  ChatMessage.proposalRejected,
+                                )
+                            : null,
+                        onViewAnamnesis: isArtist &&
+                                message.isMine &&
+                                message.isProposal &&
+                                status == ChatMessage.proposalAccepted
+                            ? () => _openSavedAnamnesis(
+                                  message,
+                                  contact?.name ?? 'Cliente',
+                                )
                             : null,
                       );
                     },
@@ -1039,14 +1151,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
-  final bool isCancelled;
+  final String proposalStatus;
   final VoidCallback? onCancelProposal;
+  final VoidCallback? onAcceptProposal;
+  final VoidCallback? onRejectProposal;
+  final VoidCallback? onViewAnamnesis;
 
   const _MessageBubble({
     super.key,
     required this.message,
-    required this.isCancelled,
+    required this.proposalStatus,
     this.onCancelProposal,
+    this.onAcceptProposal,
+    this.onRejectProposal,
+    this.onViewAnamnesis,
   });
 
   @override
@@ -1101,8 +1219,11 @@ class _MessageBubble extends StatelessWidget {
                       if (message.proposal case final proposal?)
                         _ProposalCard(
                           proposal: proposal,
-                          isCancelled: isCancelled,
+                          status: proposalStatus,
                           onCancel: onCancelProposal,
+                          onAccept: onAcceptProposal,
+                          onReject: onRejectProposal,
+                          onViewAnamnesis: onViewAnamnesis,
                         ),
                       if (message.hasAttachment)
                         _AttachmentContent(message: message),
@@ -1136,13 +1257,19 @@ class _MessageBubble extends StatelessWidget {
 
 class _ProposalCard extends StatelessWidget {
   final Map<String, dynamic> proposal;
-  final bool isCancelled;
+  final String status;
   final VoidCallback? onCancel;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
+  final VoidCallback? onViewAnamnesis;
 
   const _ProposalCard({
     required this.proposal,
-    required this.isCancelled,
+    required this.status,
     this.onCancel,
+    this.onAccept,
+    this.onReject,
+    this.onViewAnamnesis,
   });
 
   @override
@@ -1150,7 +1277,50 @@ class _ProposalCard extends StatelessWidget {
     final amount = double.tryParse(proposal['amount']?.toString() ?? '') ?? 0;
     final scheduledDate = DateTime.tryParse(proposal['date']?.toString() ?? '');
     final scheduledTime = proposal['time']?.toString();
+    final durationMinutes =
+        int.tryParse(proposal['durationMinutes']?.toString() ?? '') ?? 60;
     final notes = proposal['notes']?.toString().trim() ?? '';
+    final timeParts = scheduledTime?.split(':');
+    final isExpired = status == ChatMessage.proposalPending &&
+        scheduledDate != null &&
+        timeParts?.length == 2 &&
+        !isFutureProposalSchedule(
+          scheduledDate,
+          int.tryParse(timeParts![0]) ?? 0,
+          int.tryParse(timeParts[1]) ?? 0,
+          DateTime.now(),
+        );
+    final displayStatus = isExpired ? 'expired' : status;
+    final statusLabel = switch (displayStatus) {
+      ChatMessage.proposalAccepted => 'Aceita',
+      ChatMessage.proposalRejected => 'Recusada',
+      ChatMessage.proposalCancelled => 'Cancelada',
+      'expired' => 'Expirada',
+      _ => 'Enviada',
+    };
+    final statusColor = switch (displayStatus) {
+      ChatMessage.proposalAccepted => InkFlowColors.accent,
+      ChatMessage.proposalRejected ||
+      ChatMessage.proposalCancelled =>
+        const Color(0xFFFFA7A7),
+      'expired' => const Color(0xFFC7C7CE),
+      _ => InkFlowColors.accent,
+    };
+    final isUnavailable = displayStatus == ChatMessage.proposalRejected ||
+        displayStatus == ChatMessage.proposalCancelled ||
+        displayStatus == 'expired';
+    final statusMessage = switch (displayStatus) {
+      ChatMessage.proposalAccepted => 'Proposta aceita pelo cliente.',
+      ChatMessage.proposalRejected => 'Proposta recusada pelo cliente.',
+      ChatMessage.proposalCancelled => 'Esta proposta não está mais válida.',
+      'expired' => 'O horário desta proposta já passou.',
+      _ => null,
+    };
+    final statusMessageColor = displayStatus == ChatMessage.proposalAccepted
+        ? InkFlowColors.accentDark
+        : displayStatus == 'expired'
+            ? InkFlowColors.textMuted
+            : InkFlowColors.error;
     final currency =
         NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$', decimalDigits: 2);
 
@@ -1178,17 +1348,13 @@ class _ProposalCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                   decoration: BoxDecoration(
-                    color: isCancelled
-                        ? InkFlowColors.error.withValues(alpha: .18)
-                        : InkFlowColors.accent.withValues(alpha: .18),
+                    color: statusColor.withValues(alpha: .18),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    isCancelled ? 'Cancelada' : 'Enviada',
+                    statusLabel,
                     style: TextStyle(
-                      color: isCancelled
-                          ? const Color(0xFFFFA7A7)
-                          : InkFlowColors.accent,
+                      color: statusColor,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1223,7 +1389,7 @@ class _ProposalCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(currency.format(amount),
                     style: TextStyle(
-                        color: isCancelled
+                        color: isUnavailable
                             ? InkFlowColors.textMuted
                             : InkFlowColors.accentDark,
                         fontSize: 23,
@@ -1258,6 +1424,14 @@ class _ProposalCard extends StatelessWidget {
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700),
                               ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Duração estimada: ${durationMinutes < 60 ? '$durationMinutes min' : durationMinutes % 60 == 0 ? '${durationMinutes ~/ 60} h' : '${durationMinutes ~/ 60} h ${durationMinutes % 60} min'}',
+                                style: const TextStyle(
+                                  color: InkFlowColors.textMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -1281,17 +1455,17 @@ class _ProposalCard extends StatelessWidget {
                             height: 1.4)),
                   ),
                 ],
-                if (isCancelled) ...[
+                if (statusMessage != null) ...[
                   const SizedBox(height: 16),
-                  const Row(
+                  Row(
                     children: [
                       Icon(Icons.info_outline_rounded,
-                          color: InkFlowColors.error, size: 17),
-                      SizedBox(width: 7),
+                          color: statusMessageColor, size: 17),
+                      const SizedBox(width: 7),
                       Expanded(
-                        child: Text('Esta proposta não está mais válida.',
+                        child: Text(statusMessage,
                             style: TextStyle(
-                                color: InkFlowColors.error,
+                                color: statusMessageColor,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700)),
                       ),
@@ -1313,6 +1487,50 @@ class _ProposalCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: const Text('Cancelar proposta'),
+                    ),
+                  ),
+                ] else if (onAccept != null && onReject != null) ...[
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: onReject,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: InkFlowColors.text,
+                            side: const BorderSide(color: InkFlowColors.border),
+                            minimumSize: const Size(0, 46),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Recusar'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: onAccept,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: InkFlowColors.primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 46),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Aceitar'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (onViewAnamnesis != null) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onViewAnamnesis,
+                      icon: const Icon(Icons.assignment_outlined, size: 18),
+                      label: const Text('Ver ficha de anamnese'),
                     ),
                   ),
                 ],

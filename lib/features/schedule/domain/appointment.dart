@@ -89,3 +89,31 @@ class NewAppointment {
     required this.style,
   });
 }
+
+class SavedAnamnesis {
+  final Map<String, dynamic> answers;
+  final String signatureName;
+  final bool hasRisk;
+  final DateTime signedAt;
+
+  const SavedAnamnesis({
+    required this.answers,
+    required this.signatureName,
+    required this.hasRisk,
+    required this.signedAt,
+  });
+
+  static SavedAnamnesis? tryFromRow(Map<String, dynamic> row) {
+    final answers = row['answers'];
+    final signature = row['signature_name']?.toString().trim() ?? '';
+    final signedAt = DateTime.tryParse(row['signed_at']?.toString() ?? '');
+    if (answers is! Map || signature.isEmpty || signedAt == null) return null;
+
+    return SavedAnamnesis(
+      answers: Map<String, dynamic>.from(answers),
+      signatureName: signature,
+      hasRisk: row['has_risk'] as bool? ?? false,
+      signedAt: signedAt.toLocal(),
+    );
+  }
+}

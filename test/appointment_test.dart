@@ -67,4 +67,17 @@ void main() {
       expect(first.slot!.overlaps(second.slot!), isTrue);
     });
   });
+
+  test('SavedAnamnesis.tryFromRow preserva respostas e assinatura', () {
+    final anamnesis = SavedAnamnesis.tryFromRow({
+      'answers': {'hasAllergies': true, 'allergies': 'Látex'},
+      'signature_name': 'Carlos Mendes',
+      'has_risk': true,
+      'signed_at': '2026-10-05T14:30:00Z',
+    })!;
+
+    expect(anamnesis.answers['allergies'], 'Látex');
+    expect(anamnesis.signatureName, 'Carlos Mendes');
+    expect(anamnesis.hasRisk, isTrue);
+  });
 }

@@ -8,6 +8,12 @@ bool isFutureProposalSchedule(
 class ChatMessage {
   static const proposalPrefix = '[INKFLOW_PROPOSAL]';
   static const proposalCancellationPrefix = '[INKFLOW_PROPOSAL_CANCELLED]';
+  static const proposalAcceptancePrefix = '[INKFLOW_PROPOSAL_ACCEPTED]';
+  static const proposalRejectionPrefix = '[INKFLOW_PROPOSAL_REJECTED]';
+  static const proposalPending = 'pending';
+  static const proposalAccepted = 'accepted';
+  static const proposalRejected = 'rejected';
+  static const proposalCancelled = 'cancelled';
   final String id;
   final String senderId;
   final String receiverId;
@@ -87,17 +93,48 @@ class ChatMessage {
           ? content.substring(proposalCancellationPrefix.length)
           : null;
 
-  String get previewText => cancelledProposalId != null
+  String? get acceptedProposalId =>
+      content.startsWith(proposalAcceptancePrefix) &&
+              content.length > proposalAcceptancePrefix.length
+          ? content.substring(proposalAcceptancePrefix.length)
+          : null;
+
+  String? get rejectedProposalId =>
+      content.startsWith(proposalRejectionPrefix) &&
+              content.length > proposalRejectionPrefix.length
+          ? content.substring(proposalRejectionPrefix.length)
+          : null;
+
+  String? get proposalEventId =>
+      cancelledProposalId ?? acceptedProposalId ?? rejectedProposalId;
+
+  String? get proposalEventStatus => cancelledProposalId != null
+      ? proposalCancelled
+      : acceptedProposalId != null
+          ? proposalAccepted
+          : rejectedProposalId != null
+              ? proposalRejected
+              : null;
+
+  String get previewText => proposalEventStatus == proposalCancelled
       ? 'Proposta cancelada'
-      : isProposal
-          ? '📋 Proposta enviada'
-          : content;
+      : proposalEventStatus == proposalAccepted
+          ? 'Proposta aceita'
+          : proposalEventStatus == proposalRejected
+              ? 'Proposta recusada'
+              : isProposal
+                  ? '📋 Proposta enviada'
+                  : content;
 
   static String encodeProposal(Map<String, dynamic> values) =>
       '$proposalPrefix${jsonEncode(values)}';
 
   static String encodeProposalCancellation(String proposalId) =>
       '$proposalCancellationPrefix$proposalId';
+
+  static String encodeProposalResponse(String proposalId,
+          {required bool accepted}) =>
+      '${accepted ? proposalAcceptancePrefix : proposalRejectionPrefix}$proposalId';
 
   String get timeLabel => '${createdAt.hour.toString().padLeft(2, '0')}:'
       '${createdAt.minute.toString().padLeft(2, '0')}';
