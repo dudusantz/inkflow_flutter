@@ -11,6 +11,7 @@ import 'package:inkflow/features/auth/presentation/splash_screen.dart';
 import 'package:inkflow/features/chat/presentation/chat_screen.dart';
 import 'package:inkflow/features/chat/presentation/inbox_screen.dart';
 import 'package:inkflow/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:inkflow/features/finance/presentation/dre_screen.dart';
 import 'package:inkflow/features/finance/presentation/fiscal_settings_screen.dart';
 import 'package:inkflow/features/finance/presentation/studio_management_screen.dart';
 import 'package:inkflow/features/home/presentation/artist_home_screen.dart';
@@ -142,6 +143,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/fiscal-settings',
           builder: (context, state) => const FiscalSettingsScreen()),
+      GoRoute(path: '/dre', builder: (context, state) => const DreScreen()),
       GoRoute(
           path: '/profile', builder: (context, state) => const ProfileScreen()),
       GoRoute(

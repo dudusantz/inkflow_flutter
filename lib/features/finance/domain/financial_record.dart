@@ -14,6 +14,11 @@ class FinancialRecord {
   final String? clientEmail;
   final String? clientPhone;
   final String? clientAddress;
+  final String? notes;
+  final String? receiptPath;
+  final String dreClass;
+  final bool recurringActive;
+  final String? recurringSourceId;
 
   const FinancialRecord({
     required this.id,
@@ -29,6 +34,11 @@ class FinancialRecord {
     this.clientEmail,
     this.clientPhone,
     this.clientAddress,
+    this.notes,
+    this.receiptPath,
+    this.dreClass = 'OPERATING_EXPENSE',
+    this.recurringActive = false,
+    this.recurringSourceId,
   });
 
   factory FinancialRecord.payment(Map<String, dynamic> row) => FinancialRecord(
@@ -51,6 +61,8 @@ class FinancialRecord {
         clientEmail: row['customer_email']?.toString(),
         clientPhone: row['customer_phone']?.toString(),
         clientAddress: row['customer_address']?.toString(),
+        notes: row['notes']?.toString(),
+        receiptPath: row['receipt_path']?.toString(),
       );
 
   factory FinancialRecord.expense(Map<String, dynamic> row) => FinancialRecord(
@@ -62,7 +74,14 @@ class FinancialRecord {
             DateTime.now(),
         category: row['category']?.toString() ?? 'OUTROS',
         status: 'PAGO',
+        notes: row['notes']?.toString(),
+        receiptPath: row['receipt_path']?.toString(),
+        dreClass: row['dre_class']?.toString() ?? 'OPERATING_EXPENSE',
+        recurringActive: row['recurring_active'] == true,
+        recurringSourceId: row['recurring_source_id']?.toString(),
       );
+
+  bool get isRecurringRoot => recurringActive && recurringSourceId == null;
 }
 
 class FinancialSummary {

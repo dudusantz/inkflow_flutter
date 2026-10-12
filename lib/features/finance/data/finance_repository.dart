@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,16 +19,18 @@ class FinanceRepository {
   }
 
   Future<List<FinancialRecord>> listRecords() async {
+    await _supabase.rpc('materialize_recurring_expenses');
     final results = await Future.wait([
       _supabase
           .from('payments')
           .select('id, appointment_id, description, amount, method, status, '
               'customer_name, customer_tax_id, customer_email, customer_phone, customer_address, '
-              'paid_at, created_at, appointments(client_name)')
+              'paid_at, created_at, notes, receipt_path, appointments(client_name)')
           .eq('artist_id', _artistId),
       _supabase
           .from('expenses')
-          .select('id, description, amount, category, expense_date')
+          .select('id, description, amount, category, expense_date, notes, '
+              'dre_class, receipt_path, recurring_active, recurring_source_id')
           .eq('artist_id', _artistId),
     ]);
 
@@ -50,36 +54,132 @@ class FinanceRepository {
     String? customerPhone,
     String? customerAddress,
     String? appointmentId,
+    String? notes,
+    Uint8List? receiptBytes,
+    String? receiptName,
+    String? receiptMimeType,
   }) async {
-    await _supabase.from('payments').insert({
-      'artist_id': _artistId,
-      'description': description,
-      'amount': amount,
-      'method': method,
-      'status': status,
-      'customer_name': customerName,
-      'customer_tax_id': customerTaxId,
-      'customer_email': customerEmail,
-      'customer_phone': customerPhone,
-      'customer_address': customerAddress,
-      'appointment_id': appointmentId,
-      'paid_at': status == 'PAGO' ? DateTime.now().toIso8601String() : null,
-    });
+    final row = await _supabase
+        .from('payments')
+        .insert({
+          'artist_id': _artistId,
+          'description': description,
+          'amount': amount,
+          'method': method,
+          'status': status,
+          'customer_name': customerName,
+          'customer_tax_id': customerTaxId,
+          'customer_email': customerEmail,
+          'customer_phone': customerPhone,
+          'customer_address': customerAddress,
+          'notes': notes,
+          'appointment_id': appointmentId,
+          'paid_at': status == 'PAGO' ? DateTime.now().toIso8601String() : null,
+        })
+        .select('id')
+        .single();
+    if (receiptBytes != null && receiptName != null) {
+      await _uploadReceipt(
+        table: 'payments',
+        id: row['id'].toString(),
+        bytes: receiptBytes,
+        name: receiptName,
+        mimeType: receiptMimeType,
+      );
+    }
   }
 
   Future<void> addExpense({
     required String description,
     required double amount,
     required String category,
+    required String dreClass,
     required DateTime date,
+    String? notes,
+    bool recurring = false,
+    Uint8List? receiptBytes,
+    String? receiptName,
+    String? receiptMimeType,
   }) async {
-    await _supabase.from('expenses').insert({
-      'artist_id': _artistId,
-      'description': description,
-      'amount': amount,
-      'category': category,
-      'expense_date': DateFormat('yyyy-MM-dd').format(date),
-    });
+    final month = DateTime(date.year, date.month, 1);
+    final row = await _supabase
+        .from('expenses')
+        .insert({
+          'artist_id': _artistId,
+          'description': description,
+          'amount': amount,
+          'category': category,
+          'dre_class': dreClass,
+          'expense_date': DateFormat('yyyy-MM-dd').format(date),
+          'notes': notes,
+          'recurring_active': recurring,
+          'recurrence_day': recurring ? date.day : null,
+          'recurrence_last_generated':
+              recurring ? DateFormat('yyyy-MM-dd').format(month) : null,
+        })
+        .select('id')
+        .single();
+
+    if (receiptBytes != null && receiptName != null) {
+      await _uploadReceipt(
+        table: 'expenses',
+        id: row['id'].toString(),
+        bytes: receiptBytes,
+        name: receiptName,
+        mimeType: receiptMimeType,
+      );
+    }
+  }
+
+  Future<void> _uploadReceipt({
+    required String table,
+    required String id,
+    required Uint8List bytes,
+    required String name,
+    String? mimeType,
+  }) async {
+    final extension =
+        name.contains('.') ? name.split('.').last.toLowerCase() : 'jpg';
+    final path = '$_artistId/$table/$id/comprovante.$extension';
+    try {
+      await _supabase.storage.from('fiscal-documents').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: mimeType ?? 'image/jpeg',
+              upsert: false,
+            ),
+          );
+      await _supabase
+          .from(table)
+          .update({'receipt_path': path})
+          .eq('id', id)
+          .eq('artist_id', _artistId);
+    } catch (_) {
+      await _supabase
+          .from(table)
+          .delete()
+          .eq('id', id)
+          .eq('artist_id', _artistId);
+      rethrow;
+    }
+  }
+
+  Future<String> getRecordReceiptUrl(FinancialRecord record) async {
+    if (record.receiptPath == null) {
+      throw ArgumentError('A despesa não possui comprovante.');
+    }
+    return _supabase.storage
+        .from('fiscal-documents')
+        .createSignedUrl(record.receiptPath!, 60 * 10);
+  }
+
+  Future<void> stopRecurringExpense(String id) async {
+    await _supabase
+        .from('expenses')
+        .update({'recurring_active': false})
+        .eq('id', id)
+        .eq('artist_id', _artistId);
   }
 
   Future<void> deleteRecord(FinancialRecord record) async {
@@ -90,6 +190,15 @@ class FinanceRepository {
         .delete()
         .eq('id', record.id)
         .eq('artist_id', _artistId);
+    if (record.receiptPath != null) {
+      try {
+        await _supabase.storage
+            .from('fiscal-documents')
+            .remove([record.receiptPath!]);
+      } catch (_) {
+        // A movimentação já foi removida; um comprovante órfão não deve bloquear.
+      }
+    }
   }
 
   Future<Map<String, dynamic>?> getFiscalProfile() async {

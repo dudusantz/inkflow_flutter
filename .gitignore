@@ -55,3 +55,6 @@ hs_err_pid*.log
 
 # Cobertura de testes
 coverage/
+
+# Estado local do Supabase CLI
+supabase/.temp/

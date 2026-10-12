@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
@@ -60,12 +61,107 @@ class StudioManagementScreen extends ConsumerWidget {
                   }
                 },
                 onDelete: (record) => _confirmDelete(context, ref, record),
+                onViewExpenseReceipt: (record) =>
+                    _showExpenseReceipt(context, ref, record),
+                onStopRecurring: (record) =>
+                    _stopRecurring(context, ref, record),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _showExpenseReceipt(
+    BuildContext context,
+    WidgetRef ref,
+    FinancialRecord record,
+  ) async {
+    try {
+      final url =
+          await ref.read(financeRepositoryProvider).getRecordReceiptUrl(record);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Comprovante',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w800)),
+                    ),
+                    IconButton(
+                      tooltip: 'Fechar',
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 520),
+                  child: InteractiveViewer(
+                    child: Image.network(
+                      url,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text('Não foi possível exibir o comprovante.'),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (context.mounted) {
+        showErrorSnackBar(context, userFriendlyErrorMessage(error));
+      }
+    }
+  }
+
+  Future<void> _stopRecurring(
+    BuildContext context,
+    WidgetRef ref,
+    FinancialRecord record,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Encerrar recorrência?'),
+        content: const Text(
+          'Os lançamentos já criados serão mantidos, mas os próximos meses não serão gerados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Encerrar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(financeRepositoryProvider).stopRecurringExpense(record.id);
+      ref.invalidate(financialRecordsProvider);
+    } catch (error) {
+      if (context.mounted) {
+        showErrorSnackBar(context, userFriendlyErrorMessage(error));
+      }
+    }
   }
 
   Future<void> _confirmDelete(
@@ -300,6 +396,7 @@ class StudioManagementScreen extends ConsumerWidget {
     final customerEmailController = TextEditingController();
     final customerPhoneController = TextEditingController();
     final customerAddressController = TextEditingController();
+    final notesController = TextEditingController();
     final cpfMask = MaskTextInputFormatter(mask: '###.###.###-##');
     final cnpjMask = MaskTextInputFormatter(mask: '##.###.###/####-##');
     final phoneMask = MaskTextInputFormatter(
@@ -307,9 +404,13 @@ class StudioManagementScreen extends ConsumerWidget {
       filter: {'#': RegExp(r'[0-9]')},
     );
     var option = isPayment ? 'PIX' : 'MATERIAIS';
+    var dreClass = 'VARIABLE_COST';
     var paymentStatus = 'PAGO';
     var customerType = 'CPF';
     String? appointmentId;
+    var expenseDate = DateTime.now();
+    var recurring = false;
+    XFile? receipt;
     var saving = false;
 
     await showModalBottomSheet<void>(
@@ -442,6 +543,12 @@ class StudioManagementScreen extends ConsumerWidget {
                                 'ALUGUEL',
                                 'MARKETING',
                                 'EQUIPAMENTOS',
+                                'TAXAS',
+                                'COMISSOES',
+                                'IMPOSTOS',
+                                'ENERGIA',
+                                'CONTABILIDADE',
+                                'MANUTENCAO',
                                 'OUTROS'
                               ])
                         .map((value) => DropdownMenuItem(
@@ -449,8 +556,101 @@ class StudioManagementScreen extends ConsumerWidget {
                               child: Text(_friendlyLabel(value)),
                             ))
                         .toList(),
-                    onChanged: (value) => option = value ?? option,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setSheetState(() {
+                        option = value;
+                        if (!isPayment) dreClass = _defaultDreClass(value);
+                      });
+                    },
                   ),
+                  if (!isPayment) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey(dreClass),
+                      initialValue: dreClass,
+                      decoration: const InputDecoration(
+                        labelText: 'Classificação no DRE',
+                        prefixIcon: Icon(Icons.account_tree_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'VARIABLE_COST',
+                            child: Text('Custo variável')),
+                        DropdownMenuItem(
+                            value: 'OPERATING_EXPENSE',
+                            child: Text('Despesa operacional')),
+                        DropdownMenuItem(
+                            value: 'TAX', child: Text('Imposto ou taxa')),
+                        DropdownMenuItem(
+                            value: 'INVESTMENT', child: Text('Investimento')),
+                      ],
+                      onChanged: (value) => dreClass = value ?? dreClass,
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () async {
+                        final selected = await showDatePicker(
+                          context: context,
+                          initialDate: expenseDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (selected != null) {
+                          setSheetState(() => expenseDate = selected);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(14),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Data da despesa',
+                          prefixIcon: Icon(Icons.calendar_today_outlined),
+                        ),
+                        child:
+                            Text(DateFormat('dd/MM/yyyy').format(expenseDate)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Observações (opcional)',
+                        prefixIcon: Icon(Icons.notes_rounded),
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: recurring,
+                      activeTrackColor: InkFlowColors.accent,
+                      title: const Text('Repetir mensalmente',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                      subtitle: const Text(
+                          'Cria automaticamente esta despesa nos próximos meses.'),
+                      onChanged: (value) =>
+                          setSheetState(() => recurring = value),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await ImagePicker().pickImage(
+                          source: ImageSource.gallery,
+                          imageQuality: 85,
+                        );
+                        if (picked != null) {
+                          setSheetState(() => receipt = picked);
+                        }
+                      },
+                      icon: Icon(receipt == null
+                          ? Icons.attach_file_rounded
+                          : Icons.check_circle_outline_rounded),
+                      label: Text(receipt == null
+                          ? 'Anexar comprovante'
+                          : 'Comprovante selecionado'),
+                    ),
+                  ],
                   if (isPayment) ...[
                     const SizedBox(height: 18),
                     const Text(
@@ -547,6 +747,34 @@ class StudioManagementScreen extends ConsumerWidget {
                       onChanged: (value) =>
                           paymentStatus = value ?? paymentStatus,
                     ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Observações (opcional)',
+                        prefixIcon: Icon(Icons.notes_rounded),
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await ImagePicker().pickImage(
+                          source: ImageSource.gallery,
+                          imageQuality: 85,
+                        );
+                        if (picked != null) {
+                          setSheetState(() => receipt = picked);
+                        }
+                      },
+                      icon: Icon(receipt == null
+                          ? Icons.attach_file_rounded
+                          : Icons.check_circle_outline_rounded),
+                      label: Text(receipt == null
+                          ? 'Anexar comprovante'
+                          : 'Comprovante selecionado'),
+                    ),
                   ],
                   const SizedBox(height: 20),
                   InkButton(
@@ -560,6 +788,7 @@ class StudioManagementScreen extends ConsumerWidget {
                           .replaceAll(',', '.'));
                       try {
                         final repository = ref.read(financeRepositoryProvider);
+                        final receiptBytes = await receipt?.readAsBytes();
                         if (isPayment) {
                           await repository.addPayment(
                             description: descriptionController.text.trim(),
@@ -573,13 +802,27 @@ class StudioManagementScreen extends ConsumerWidget {
                             customerAddress:
                                 customerAddressController.text.trim(),
                             appointmentId: appointmentId,
+                            notes: notesController.text.trim().isEmpty
+                                ? null
+                                : notesController.text.trim(),
+                            receiptBytes: receiptBytes,
+                            receiptName: receipt?.name,
+                            receiptMimeType: _receiptMimeType(receipt?.name),
                           );
                         } else {
                           await repository.addExpense(
                             description: descriptionController.text.trim(),
                             amount: amount,
                             category: option,
-                            date: DateTime.now(),
+                            dreClass: dreClass,
+                            date: expenseDate,
+                            notes: notesController.text.trim().isEmpty
+                                ? null
+                                : notesController.text.trim(),
+                            recurring: recurring,
+                            receiptBytes: receiptBytes,
+                            receiptName: receipt?.name,
+                            receiptMimeType: _receiptMimeType(receipt?.name),
                           );
                         }
                         ref.invalidate(financialRecordsProvider);
@@ -609,6 +852,27 @@ class StudioManagementScreen extends ConsumerWidget {
     customerEmailController.dispose();
     customerPhoneController.dispose();
     customerAddressController.dispose();
+    notesController.dispose();
+  }
+
+  static String _defaultDreClass(String category) {
+    if (category == 'MATERIAIS' ||
+        category == 'TAXAS' ||
+        category == 'COMISSOES') {
+      return 'VARIABLE_COST';
+    }
+    if (category == 'IMPOSTOS') return 'TAX';
+    if (category == 'EQUIPAMENTOS') return 'INVESTMENT';
+    return 'OPERATING_EXPENSE';
+  }
+
+  static String? _receiptMimeType(String? name) {
+    final extension = name?.split('.').last.toLowerCase();
+    return switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
   }
 
   static String _friendlyLabel(String value) => value
@@ -624,6 +888,8 @@ class _ManagementContent extends StatelessWidget {
   final VoidCallback onAddExpense;
   final ValueChanged<FinancialRecord> onGenerateReceipt;
   final ValueChanged<FinancialRecord> onDelete;
+  final ValueChanged<FinancialRecord> onViewExpenseReceipt;
+  final ValueChanged<FinancialRecord> onStopRecurring;
 
   const _ManagementContent({
     required this.records,
@@ -631,6 +897,8 @@ class _ManagementContent extends StatelessWidget {
     required this.onAddExpense,
     required this.onGenerateReceipt,
     required this.onDelete,
+    required this.onViewExpenseReceipt,
+    required this.onStopRecurring,
   });
 
   @override
@@ -692,6 +960,13 @@ class _ManagementContent extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _ManagementLink(
+            icon: Icons.account_balance_outlined,
+            title: 'DRE gerencial',
+            subtitle: 'Receitas, custos, despesas e resultado',
+            onTap: () => context.push('/dre'),
+          ),
+          const SizedBox(height: 10),
+          _ManagementLink(
             icon: Icons.insights_outlined,
             title: 'Relatórios e indicadores',
             subtitle: 'Acompanhe o desempenho por período',
@@ -714,6 +989,12 @@ class _ManagementContent extends StatelessWidget {
                       ? () => onGenerateReceipt(record)
                       : null,
                   onDelete: () => onDelete(record),
+                  onExpenseReceipt: record.receiptPath == null
+                      ? null
+                      : () => onViewExpenseReceipt(record),
+                  onStopRecurring: record.isRecurringRoot
+                      ? () => onStopRecurring(record)
+                      : null,
                 )),
         ],
       ),
@@ -870,11 +1151,15 @@ class _RecordTile extends StatelessWidget {
   final FinancialRecord record;
   final VoidCallback? onReceipt;
   final VoidCallback onDelete;
+  final VoidCallback? onExpenseReceipt;
+  final VoidCallback? onStopRecurring;
 
   const _RecordTile({
     required this.record,
     required this.onReceipt,
     required this.onDelete,
+    required this.onExpenseReceipt,
+    required this.onStopRecurring,
   });
 
   Future<void> _showActions(BuildContext context) async {
@@ -1002,6 +1287,48 @@ class _RecordTile extends StatelessWidget {
               ),
               const SizedBox(height: 10),
             ],
+            if (onExpenseReceipt != null) ...[
+              _MovementAction(
+                icon: Icons.attachment_rounded,
+                iconColor: const Color(0xFF087F7A),
+                iconBackground: const Color(0xFFE7F7F5),
+                title: 'Ver comprovante',
+                subtitle: 'Abrir o documento anexado à despesa',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onExpenseReceipt?.call();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (onStopRecurring != null) ...[
+              _MovementAction(
+                icon: Icons.event_busy_outlined,
+                iconColor: const Color(0xFF9A6400),
+                iconBackground: const Color(0xFFFFF2D9),
+                title: 'Encerrar recorrência',
+                subtitle: 'Manter os lançamentos já criados',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onStopRecurring?.call();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (record.notes?.trim().isNotEmpty == true) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF6F7F8),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(record.notes!,
+                    style: const TextStyle(
+                        color: Color(0xFF626671), fontSize: 12, height: 1.4)),
+              ),
+              const SizedBox(height: 10),
+            ],
             _MovementAction(
               icon: Icons.delete_outline_rounded,
               iconColor: const Color(0xFFE5484D),
@@ -1038,7 +1365,7 @@ class _RecordTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(
-          '${StudioManagementScreen._friendlyLabel(record.category)} · ${DateFormat('dd/MM/yyyy').format(record.date)}',
+          '${StudioManagementScreen._friendlyLabel(record.category)} · ${DateFormat('dd/MM/yyyy').format(record.date)}${record.isRecurringRoot ? ' · Mensal' : ''}',
           style: const TextStyle(fontSize: 11)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
