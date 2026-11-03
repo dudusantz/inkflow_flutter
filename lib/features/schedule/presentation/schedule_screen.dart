@@ -9,12 +9,17 @@ import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/profile/providers/profile_provider.dart';
 import 'package:inkflow/features/schedule/data/appointment_repository.dart';
 import 'package:inkflow/features/schedule/domain/appointment.dart';
+import 'package:inkflow/features/schedule/services/appointment_calendar_service.dart';
+import 'package:inkflow/features/schedule/services/appointment_notification_service.dart';
 
-final scheduleProvider = FutureProvider.autoDispose<List<Appointment>>((ref) {
+final scheduleProvider =
+    FutureProvider.autoDispose<List<Appointment>>((ref) async {
   final isArtist = ref.watch(isArtistProvider);
-  return ref
+  final appointments = await ref
       .watch(appointmentRepositoryProvider)
       .listForUser(asArtist: isArtist);
+  await ref.read(appointmentNotificationServiceProvider).sync(appointments);
+  return appointments;
 });
 
 void showSavedAnamnesisSheet(
@@ -204,10 +209,25 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   }
 
   Future<void> _toggleReminder(Appointment appointment) async {
+    final enabled = !appointment.reminderEnabled;
     try {
+      final notifications = ref.read(appointmentNotificationServiceProvider);
+      if (enabled && !await notifications.requestPermissions()) {
+        if (!mounted) return;
+        showErrorSnackBar(
+          context,
+          'Ative as notificações do InkFlow nas configurações do aparelho.',
+        );
+        return;
+      }
       await ref
           .read(appointmentRepositoryProvider)
-          .setReminderEnabled(appointment.id, !appointment.reminderEnabled);
+          .setReminderEnabled(appointment.id, enabled);
+      if (enabled) {
+        await notifications.schedule(appointment);
+      } else {
+        await notifications.cancel(appointment.id);
+      }
       ref.invalidate(scheduleProvider);
     } catch (e) {
       if (!mounted) return;
@@ -223,6 +243,24 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
           .read(appointmentRepositoryProvider)
           .anamnesisForAppointment(appointment.id),
     );
+  }
+
+  Future<void> _addToCalendar(Appointment appointment) async {
+    try {
+      final opened = await AppointmentCalendarService.add(appointment);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(opened
+              ? 'Calendário aberto. Confirme para salvar o evento.'
+              : 'Não foi possível abrir um calendário neste aparelho.'),
+          backgroundColor: opened ? InkFlowColors.success : InkFlowColors.error,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showErrorSnackBar(context, userFriendlyErrorMessage(error));
+    }
   }
 
   void _openSessionDetails(Appointment session, bool isArtist) {
@@ -290,6 +328,17 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                   ],
                 ),
               const SizedBox(height: 24),
+              if (AppointmentCalendarService.isSupported) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _addToCalendar(session),
+                    icon: const Icon(Icons.event_available_outlined),
+                    label: const Text('Adicionar ao calendário'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               if (isArtist && session.anamnesisStatus != 'pendente') ...[
                 SizedBox(
                   width: double.infinity,

@@ -60,6 +60,16 @@ class Appointment {
 
   TimeSlot? get slot => TimeSlot.tryParse(startTime, endTime);
 
+  DateTime? get startsAt {
+    final minutes = TimeSlot.parseMinutes(startTime);
+    return minutes == null ? null : date.add(Duration(minutes: minutes));
+  }
+
+  DateTime? get endsAt {
+    final minutes = TimeSlot.parseMinutes(endTime);
+    return minutes == null ? null : date.add(Duration(minutes: minutes));
+  }
+
   String get timeRangeLabel => '$startTime – $endTime';
 
   bool isOn(DateTime day) =>

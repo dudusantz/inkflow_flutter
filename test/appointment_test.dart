@@ -32,6 +32,8 @@ void main() {
       expect(appointment.startTime, '09:00');
       expect(appointment.endTime, '11:00');
       expect(appointment.timeRangeLabel, '09:00 – 11:00');
+      expect(appointment.startsAt, DateTime(2026, 8, 20, 9));
+      expect(appointment.endsAt, DateTime(2026, 8, 20, 11));
     });
 
     test('descarta linha incompleta em vez de lançar', () {

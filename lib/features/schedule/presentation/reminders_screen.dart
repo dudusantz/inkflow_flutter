@@ -8,6 +8,7 @@ import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/schedule/data/appointment_repository.dart';
 import 'package:inkflow/features/schedule/domain/appointment.dart';
 import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
+import 'package:inkflow/features/schedule/services/appointment_notification_service.dart';
 
 /// Sessões futuras marcadas (ou não) para receber lembrete.
 final upcomingRemindersProvider =
@@ -21,10 +22,7 @@ final upcomingRemindersProvider =
 
 /// Lembretes de sessão (RF09).
 ///
-/// A tela anterior exibia três clientes fixos no código e um seletor de
-/// cenários de protótipo. Aqui a lista vem da agenda real; o que continua
-/// pendente é o disparo automático (24h antes), que depende de uma função
-/// agendada no servidor.
+/// A lista vem da agenda real e cada opção agenda ou cancela o aviso local.
 class RemindersScreen extends ConsumerWidget {
   const RemindersScreen({super.key});
 
@@ -33,10 +31,25 @@ class RemindersScreen extends ConsumerWidget {
     WidgetRef ref,
     Appointment appointment,
   ) async {
+    final enabled = !appointment.reminderEnabled;
     try {
+      final notifications = ref.read(appointmentNotificationServiceProvider);
+      if (enabled && !await notifications.requestPermissions()) {
+        if (!context.mounted) return;
+        showErrorSnackBar(
+          context,
+          'Ative as notificações do InkFlow nas configurações do aparelho.',
+        );
+        return;
+      }
       await ref
           .read(appointmentRepositoryProvider)
-          .setReminderEnabled(appointment.id, !appointment.reminderEnabled);
+          .setReminderEnabled(appointment.id, enabled);
+      if (enabled) {
+        await notifications.schedule(appointment);
+      } else {
+        await notifications.cancel(appointment.id);
+      }
       ref.invalidate(scheduleProvider);
     } catch (e) {
       if (!context.mounted) return;
@@ -57,9 +70,22 @@ class RemindersScreen extends ConsumerWidget {
             showBack: true,
             backTo: '/home',
           ),
-          const UnderDevelopmentBanner(
-            message: 'O disparo automático 24h antes ainda não está ativo. '
-                'Aqui você define quais sessões devem recebê-lo.',
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 14, 20, 4),
+            child: Row(
+              children: [
+                Icon(Icons.notifications_active_outlined,
+                    size: 18, color: InkFlowColors.accentDark),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'O aviso é enviado neste aparelho 24 horas antes da sessão.',
+                    style:
+                        TextStyle(color: InkFlowColors.textMuted, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: remindersAsync.when(

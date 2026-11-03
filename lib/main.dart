@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:inkflow/core/theme/app_theme.dart';
+import 'package:inkflow/core/notifications/push_notification_service.dart';
+import 'package:inkflow/features/schedule/services/appointment_notification_service.dart';
 import 'router.dart';
 
 Future<void> main() async {
@@ -114,6 +117,20 @@ class InkFlowApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final pushNotifications = ref.watch(pushNotificationServiceProvider);
+    ref.watch(appointmentNotificationServiceProvider).setRouteHandler((route) {
+      final context = rootNavigatorKey.currentContext;
+      if (context != null) context.go(route);
+    });
+    pushNotifications.setPermissionDeniedHandler(() {
+      final context = rootNavigatorKey.currentContext;
+      if (context == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+          'As notificações estão bloqueadas. Você pode ativá-las no navegador.',
+        ),
+      ));
+    });
 
     return MaterialApp.router(
       title: 'InkFlow',

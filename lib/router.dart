@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,6 +29,8 @@ import 'package:inkflow/features/schedule/presentation/reminders_screen.dart';
 import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
 import 'package:inkflow/features/search/presentation/artist_profile_screen.dart';
 import 'package:inkflow/features/search/presentation/search_screen.dart';
+
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Rotas acessiveis sem sessao ativa.
 const _publicRoutes = {'/', '/register', '/callback'};
@@ -82,6 +84,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     refreshListenable: refresh,
     redirect: (context, state) => authRedirect(

@@ -1,12 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:inkflow/core/errors/error_utils.dart';
+import 'package:inkflow/core/notifications/push_notification_service.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/utils/time_slot.dart';
-import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/schedule/domain/appointment.dart';
 import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
 
@@ -149,9 +150,52 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       ),
       body: Column(
         children: [
-          const UnderDevelopmentBanner(
-            message: 'Avisos calculados no aparelho a partir da agenda. '
-                'Push e histórico de leitura ainda não existem.',
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: InkFlowColors.accent.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.notifications_active_outlined,
+                      color: InkFlowColors.accentDark, size: 20),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Receba mensagens, propostas e lembretes mesmo com o app fechado.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  if (kIsWeb)
+                    TextButton(
+                      onPressed: () async {
+                        try {
+                          final enabled = await ref
+                              .read(pushNotificationServiceProvider)
+                              .enable();
+                          if (!context.mounted) return;
+                          if (enabled) {
+                            showSuccessSnackBar(
+                                context, 'Notificações ativadas.');
+                          } else {
+                            showErrorSnackBar(context,
+                                'Permita as notificações nas configurações do navegador.');
+                          }
+                        } catch (error) {
+                          if (context.mounted) {
+                            showErrorSnackBar(
+                                context, userFriendlyErrorMessage(error));
+                          }
+                        }
+                      },
+                      child: const Text('Ativar'),
+                    ),
+                ],
+              ),
+            ),
           ),
           Expanded(
             child: notificationsAsync.when(

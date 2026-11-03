@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:inkflow/core/notifications/push_notification_service.dart';
+
 /// Deep link registrado no Android, iOS e na lista de URLs permitidas do
 /// Supabase. Centralizá-lo evita divergências entre cadastro e recuperação.
 const authCallbackUrl = 'inkflow://auth/callback';
@@ -190,6 +192,7 @@ class AuthRepository {
 
   // Função de Logout
   Future<void> signOut() async {
+    await unregisterPushSubscription(_supabase);
     await _supabase.auth.signOut();
   }
 }

@@ -39,6 +39,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>O InkFlow usa a câmera para enviar referências na conversa.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>O InkFlow abre seu calendário para você confirmar e salvar uma sessão.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>O calendário pode acessar contatos ao adicionar convidados ao evento.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>O InkFlow usa o microfone para gravar mensagens de áudio.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
