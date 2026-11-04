@@ -4,6 +4,12 @@ import 'package:inkflow/features/finance/domain/dre_summary.dart';
 import 'package:inkflow/features/finance/domain/financial_record.dart';
 
 void main() {
+  test('descreve lucro, prejuízo e resultado zerado corretamente', () {
+    expect(dreResultLabel(10, 'do período'), 'Lucro do período');
+    expect(dreResultLabel(-10, 'do período'), 'Prejuízo do período');
+    expect(dreResultLabel(0, 'do período'), 'Resultado do período');
+  });
+
   test('calcula o DRE apenas com recebimentos pagos', () {
     final records = [
       FinancialRecord(

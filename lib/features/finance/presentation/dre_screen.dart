@@ -331,8 +331,8 @@ class _DreContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('RESULTADO DO PERÍODO',
-                    style: TextStyle(
+                Text(dreResultLabel(dre.netResult, 'do período').toUpperCase(),
+                    style: const TextStyle(
                         color: Color(0xFF9FA1AA),
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -396,7 +396,7 @@ class _DreContent extends StatelessWidget {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 3),
           const Text(
-            'Compare o que entrou, o que saiu e quanto sobrou.',
+            'Compare entradas, saídas e o resultado de cada mês.',
             style: TextStyle(color: InkFlowColors.textMuted, fontSize: 12),
           ),
           const SizedBox(height: 10),
@@ -437,13 +437,15 @@ class _DreContent extends StatelessWidget {
                 _DreRow('(-) Custos variáveis', -dre.serviceCosts, currency,
                     onTap: () => _showRecords(
                         context, 'Custos variáveis', variableCosts, currency)),
-                _DreRow('(=) Lucro bruto', dre.grossProfit, currency,
+                _DreRow('(=) ${dreResultLabel(dre.grossProfit, 'bruto')}',
+                    dre.grossProfit, currency,
                     emphasis: true),
                 _DreRow('(-) Despesas operacionais', -dre.operatingExpenses,
                     currency,
                     onTap: () => _showRecords(context, 'Despesas operacionais',
                         operatingExpenses, currency)),
-                _DreRow('(=) Resultado líquido', dre.netResult, currency,
+                _DreRow('(=) ${dreResultLabel(dre.netResult, 'líquido')}',
+                    dre.netResult, currency,
                     emphasis: true, last: true),
               ],
             ),
@@ -756,8 +758,8 @@ class _MonthlyResultRow extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text('Saldo do mês',
-                      style: TextStyle(
+                  Text(dreResultLabel(result, 'do mês'),
+                      style: const TextStyle(
                           color: InkFlowColors.textMuted, fontSize: 10)),
                   const SizedBox(height: 2),
                   Text(

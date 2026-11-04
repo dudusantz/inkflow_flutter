@@ -1,5 +1,11 @@
 import 'package:inkflow/features/finance/domain/financial_record.dart';
 
+String dreResultLabel(double value, String complement) {
+  if (value < 0) return 'Prejuízo $complement';
+  if (value > 0) return 'Lucro $complement';
+  return 'Resultado $complement';
+}
+
 class DreSummary {
   final double grossRevenue;
   final double taxes;
