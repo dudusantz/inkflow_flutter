@@ -118,7 +118,7 @@ class _ArtistProfileContent extends StatelessWidget {
                 children: [
                   NetworkImageWithFallback(
                     url: artist.avatarUrl,
-                    fallbackUrl: artist.coverImageUrl,
+                    fallbackUrls: artist.portfolioUrls,
                     fallbackIcon: Icons.brush_outlined,
                   ),
                   const DecoratedBox(
@@ -431,6 +431,7 @@ class _PortfolioViewerState extends State<_PortfolioViewer> {
                 child: Center(
                   child: NetworkImageWithFallback(
                     url: widget.urls[index],
+                    fit: BoxFit.contain,
                     fallbackIcon: Icons.image_not_supported_outlined,
                   ),
                 ),

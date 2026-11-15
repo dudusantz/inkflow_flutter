@@ -480,7 +480,10 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   const BorderRadius.vertical(top: Radius.circular(16)),
               child: NetworkImageWithFallback(
                 url: imageUrl,
-                fallbackUrl: artist.avatarUrl,
+                fallbackUrls: [
+                  ...artist.portfolioUrls,
+                  if (artist.avatarUrl case final avatar?) avatar,
+                ],
                 height: 110,
                 width: double.infinity,
               ),

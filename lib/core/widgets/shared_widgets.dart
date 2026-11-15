@@ -509,7 +509,8 @@ class InkSurface extends StatelessWidget {
 /// mesma foto a cada rebuild.
 class NetworkImageWithFallback extends StatelessWidget {
   final String? url;
-  final String? fallbackUrl;
+  final List<String> fallbackUrls;
+  final BoxFit fit;
   final double? width;
   final double? height;
   final IconData fallbackIcon;
@@ -517,7 +518,8 @@ class NetworkImageWithFallback extends StatelessWidget {
   const NetworkImageWithFallback({
     super.key,
     required this.url,
-    this.fallbackUrl,
+    this.fallbackUrls = const [],
+    this.fit = BoxFit.cover,
     this.width,
     this.height,
     this.fallbackIcon = Icons.image_not_supported_outlined,
@@ -532,7 +534,7 @@ class NetworkImageWithFallback extends StatelessWidget {
       imageUrl: source,
       width: width,
       height: height,
-      fit: BoxFit.cover,
+      fit: fit,
       placeholder: (_, __) => Container(
         width: width,
         height: height,
@@ -542,14 +544,21 @@ class NetworkImageWithFallback extends StatelessWidget {
     );
   }
 
-  Widget _fallbackImage() => fallbackUrl == null || fallbackUrl == url
-      ? _fallback()
-      : NetworkImageWithFallback(
-          url: fallbackUrl,
-          width: width,
-          height: height,
-          fallbackIcon: fallbackIcon,
-        );
+  Widget _fallbackImage() {
+    final remaining = fallbackUrls
+        .where((candidate) => candidate.isNotEmpty && candidate != url)
+        .toList();
+    if (remaining.isEmpty) return _fallback();
+
+    return NetworkImageWithFallback(
+      url: remaining.first,
+      fallbackUrls: remaining.sublist(1),
+      fit: fit,
+      width: width,
+      height: height,
+      fallbackIcon: fallbackIcon,
+    );
+  }
 
   Widget _fallback() {
     return Container(
