@@ -20,6 +20,19 @@ class ProfileRepository {
 
   User? get _user => _supabase.auth.currentUser;
 
+  Future<Map<String, dynamic>?> fetchProfessionalSettings() async {
+    final user = _requireUser();
+    return _supabase
+        .from('profiles')
+        .select('styles,min_price,hourly_rate,bio,career_start_year,'
+            'experience_years,city,state,studio_name,instagram,'
+            'portfolio_urls,portfolio_url')
+        .eq('id', user.id)
+        .eq('role', 'ARTIST')
+        .maybeSingle()
+        .timeout(const Duration(seconds: 10));
+  }
+
   /// Perfil do usuario logado, ou `null` se nao houver sessao.
   ///
   /// Em falha de rede cai para os metadados do Auth, para que a tela de perfil
@@ -85,13 +98,13 @@ class ProfileRepository {
     if (extension == null) {
       throw const FormatException('Use uma imagem JPEG, PNG, WebP ou GIF.');
     }
-    final path = '${user.id}/portfolio_$index.$extension';
+    final path = '${user.id}/portfolio_${DateTime.now().microsecondsSinceEpoch}'
+        '_$index.$extension';
 
     await _supabase.storage.from('portfolio').uploadBinary(
           path,
           bytes,
           fileOptions: FileOptions(
-            upsert: true,
             contentType: contentType,
           ),
         );
@@ -126,7 +139,8 @@ class ProfileRepository {
       'experience_years': DateTime.now().year - careerStartYear,
       'city': city.trim(),
       'state': state.trim().toUpperCase(),
-      'studio_name': studioName?.trim().isEmpty == true ? null : studioName?.trim(),
+      'studio_name':
+          studioName?.trim().isEmpty == true ? null : studioName?.trim(),
       'instagram': instagram?.trim().isEmpty == true ? null : instagram?.trim(),
     }).eq('id', user.id);
   }

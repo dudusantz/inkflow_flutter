@@ -11,6 +11,7 @@ import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/profile/data/profile_repository.dart';
 import 'package:inkflow/features/profile/providers/profile_provider.dart';
+import 'package:inkflow/features/search/domain/artist_summary.dart';
 
 class ProfileSetupScreen extends ConsumerStatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -33,7 +34,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     'Neo-Tradicional',
   ];
   final List<String> _selectedStyles = [];
-  final List<Uint8List> _portfolioImages = [];
+  final List<Object> _portfolioImages = [];
   final _minPriceController = TextEditingController(text: '150');
   final _hourlyRateController = TextEditingController(text: '200');
   final _bioController = TextEditingController();
@@ -46,11 +47,16 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final _locationsRepository = BrazilLocationsRepository();
 
   bool _isLoading = false;
+  bool _loadingSettings = true;
+  bool _editing = false;
+  Object? _settingsError;
   bool _isLoadingCities = false;
   bool _cityLookupFailed = false;
   List<String> _cities = const [];
 
-  bool get _portfolioComplete => _portfolioImages.length >= 3;
+  int get _minimumPhotos => _editing ? 1 : 3;
+  int get _minimumBioLength => _editing ? 1 : 30;
+  bool get _portfolioComplete => _portfolioImages.length >= _minimumPhotos;
   bool get _pricesComplete =>
       (double.tryParse(_minPriceController.text.replaceAll(',', '.')) ?? 0) >
           0 &&
@@ -62,9 +68,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       _pricesComplete &&
       _professionalInfoComplete;
   bool get _professionalInfoComplete =>
-      _bioController.text.trim().length >= 30 &&
+      _bioController.text.trim().length >= _minimumBioLength &&
       (int.tryParse(_experienceController.text) ?? 0) >= 1950 &&
-      (int.tryParse(_experienceController.text) ?? 9999) <= DateTime.now().year &&
+      (int.tryParse(_experienceController.text) ?? 9999) <=
+          DateTime.now().year &&
       _cityController.text.trim().isNotEmpty &&
       _stateController.text.trim().length == 2;
   int get _completedSteps =>
@@ -72,6 +79,51 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       (_pricesComplete ? 1 : 0) +
       (_professionalInfoComplete ? 1 : 0) +
       (_portfolioComplete ? 1 : 0);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    setState(() {
+      _loadingSettings = true;
+      _settingsError = null;
+    });
+    try {
+      final settings =
+          await ref.read(profileRepositoryProvider).fetchProfessionalSettings();
+      if (!mounted) return;
+      setState(() {
+        _loadingSettings = false;
+        if (settings == null) return;
+        _editing = true;
+        final artist = ArtistSummary.fromRow(settings);
+        _selectedStyles.addAll(artist.styles);
+        _portfolioImages.addAll(artist.portfolioUrls);
+        _minPriceController.text = settings['min_price']?.toString() ?? '150';
+        _hourlyRateController.text =
+            settings['hourly_rate']?.toString() ?? '200';
+        _bioController.text = artist.bio ?? '';
+        _experienceController.text = settings['career_start_year']
+                ?.toString() ??
+            (settings['experience_years'] == null
+                ? ''
+                : (DateTime.now().year - artist.experienceYears).toString());
+        _cityController.text = artist.city ?? '';
+        _stateController.text = artist.state ?? '';
+        _studioController.text = artist.studioName ?? '';
+        _instagramController.text = artist.instagram ?? '';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadingSettings = false;
+        _settingsError = error;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -94,7 +146,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       );
       if (file == null) return;
       final bytes = await file.readAsBytes();
-      if (!mounted) return;
+      if (!mounted || _isLoading || _portfolioImages.length >= 6) return;
       setState(() => _portfolioImages.add(bytes));
     } catch (e) {
       if (mounted) {
@@ -107,7 +159,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   }
 
   Future<void> _activateProfile() async {
-    if (!_canActivate) return;
+    if (!_canActivate || _isLoading) return;
 
     setState(() => _isLoading = true);
     try {
@@ -117,11 +169,15 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       // engolido quando ao menos uma foto subia, e o perfil ficava público
       // com o portfólio incompleto sem ninguém ser avisado.
       final portfolioUrls = <String>[];
-      for (var i = 0; i < _portfolioImages.length; i++) {
-        portfolioUrls
-            .add(await repository.uploadPortfolioImage(_portfolioImages[i], i));
+      final photos = List<Object>.of(_portfolioImages);
+      for (var i = 0; i < photos.length; i++) {
+        final photo = photos[i];
+        portfolioUrls.add(photo is String
+            ? photo
+            : await repository.uploadPortfolioImage(photo as Uint8List, i));
       }
 
+      if (!mounted) return;
       await repository.activateArtistProfile(
         styles: _selectedStyles,
         minPrice:
@@ -143,6 +199,15 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
 
       if (!mounted) return;
       setState(() => _isLoading = false);
+      if (_editing) {
+        showSuccessSnackBar(context, 'Perfil profissional atualizado.');
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/profile');
+        }
+        return;
+      }
       await _showSuccessModal();
       if (mounted) context.go('/home');
     } on FormatException catch (e) {
@@ -311,6 +376,15 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settingsError = _settingsError;
+    if (_loadingSettings || settingsError != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Perfil profissional')),
+        body: settingsError == null
+            ? const Center(child: CircularProgressIndicator())
+            : AsyncErrorView(error: settingsError, onRetry: _loadSettings),
+      );
+    }
     return Scaffold(
       backgroundColor: InkFlowColors.primary,
       appBar: AppBar(
@@ -495,11 +569,14 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                 children: [
                   _buildProfessionalField(
                     label: 'Biografia profissional *',
-                    hint: 'Conte sobre sua trajetória, técnica e diferencial...',
+                    hint:
+                        'Conte sobre sua trajetória, técnica e diferencial...',
                     controller: _bioController,
                     icon: Icons.notes_rounded,
                     maxLines: 4,
-                    helper: '${_bioController.text.trim().length}/30 caracteres mínimos',
+                    helper: _editing
+                        ? null
+                        : '${_bioController.text.trim().length}/30 caracteres mínimos',
                   ),
                   const SizedBox(height: 14),
                   Row(
@@ -547,9 +624,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             _buildSectionCard(
               step: 4,
               complete: _portfolioComplete,
-              title: 'Monte seu portfólio',
+              title: _editing ? 'Seu portfólio' : 'Monte seu portfólio',
               subtitle:
-                  '${_portfolioImages.length}/3 fotos obrigatórias • máximo de 6',
+                  '${_portfolioImages.length} fotos • mínimo de $_minimumPhotos, máximo de 6',
               child: Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -563,9 +640,11 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             ),
             const SizedBox(height: 22),
             InkButton(
-              label: _canActivate
-                  ? 'Ativar perfil profissional'
-                  : 'Complete as etapas para ativar',
+              label: _editing
+                  ? 'Salvar alterações'
+                  : _canActivate
+                      ? 'Ativar perfil profissional'
+                      : 'Complete as etapas para ativar',
               isLoading: _isLoading,
               onPressed: _canActivate ? _activateProfile : null,
             ),
@@ -627,8 +706,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                         size: 18, color: InkFlowColors.primary)
                     : Text('$step',
                         style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800)),
+                            color: Colors.white, fontWeight: FontWeight.w800)),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -671,7 +749,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           controller: controller,
           keyboardType: TextInputType.number,
           onChanged: (_) => setState(() {}),
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style:
+              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           decoration: InputDecoration(
             prefixText: 'R\$ ',
             prefixStyle: const TextStyle(
@@ -748,7 +827,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             alignment: Alignment.centerRight,
             child: Text(helper,
                 style: TextStyle(
-                    color: controller.text.trim().length >= 30
+                    color: controller.text.trim().length >= _minimumBioLength
                         ? InkFlowColors.accent
                         : Colors.white38,
                     fontSize: 10)),
@@ -938,18 +1017,23 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     );
   }
 
-  Widget _buildPhotoThumb(Uint8List bytes, int index) {
+  Widget _buildPhotoThumb(Object photo, int index) {
     return Stack(
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
-          child: Image.memory(bytes, width: 92, height: 108, fit: BoxFit.cover),
+          child: photo is String
+              ? NetworkImageWithFallback(url: photo, width: 92, height: 108)
+              : Image.memory(photo as Uint8List,
+                  width: 92, height: 108, fit: BoxFit.cover),
         ),
         Positioned(
           top: 4,
           right: 4,
           child: GestureDetector(
-            onTap: () => setState(() => _portfolioImages.removeAt(index)),
+            onTap: _isLoading
+                ? null
+                : () => setState(() => _portfolioImages.removeAt(index)),
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: const BoxDecoration(
