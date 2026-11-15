@@ -1,7 +1,4 @@
 {
-  "dependencies": {
-    "puppeteer-core": "^25.1.0"
-  },
   "devDependencies": {
     "supabase": "^2.117.0"
   }

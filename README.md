@@ -1,134 +1,72 @@
-# InkFlow — Flutter App
+# InkFlow
 
-Plataforma que conecta tatuadores e clientes: busca de profissionais, chat, agenda,
-anamnese e dashboard. Frontend em **Flutter + Dart**, backend em **Supabase**
-(Auth, Postgres com RLS, Realtime e Storage).
+Aplicativo Flutter para clientes e tatuadores. O cliente encontra profissionais,
+conversa pelo chat e responde a propostas. Ao aceitar, preenche e assina a ficha
+de anamnese. A confirmação inclui a sessão na agenda dos dois participantes.
 
----
+Na área profissional, o tatuador configura o portfólio, acompanha a agenda e
+gerencia recebimentos, despesas, recibos, relatórios e a DRE gerencial.
 
-## Como rodar
+## Executar localmente
 
-### Pré-requisitos
+Tenha o Flutter instalado e acesso ao projeto Supabase do InkFlow. Para testar
+no Android, configure também o SDK Android e confira o ambiente com
+`flutter doctor`.
 
-- Flutter SDK `>=3.0.0` ([flutter.dev](https://flutter.dev/docs/get-started/install))
-- Dart `>=3.0.0`
-- Um projeto Supabase
+Na raiz do repositório, execute no PowerShell:
 
-### Passos
-
-```bash
-# 1. Dependências
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 flutter pub get
-
-# 2. Credenciais
-cp .env.example .env      # e preencha SUPABASE_URL e SUPABASE_ANON_KEY
-
-# 3. Banco de dados — execute na ordem, no SQL Editor do Supabase:
-#    supabase/migrations/001_rf02_artist_profile.sql
-#    supabase/migrations/002_rls_policies.sql
-
-# 4. Rodar
-flutter run
+flutter devices
 ```
 
-> **A migration `002` não é opcional.** Ela cria as políticas de RLS, as views
-> `artist_directory` e `chat_directory` e a constraint que impede conflito de
-> horário. O código do app pressupõe que elas existam: sem isso o banco fica
-> aberto e a agenda perde a proteção contra agendamento duplo.
+Preencha `SUPABASE_URL` e
+`SUPABASE_ANON_KEY` com a URL e a chave pública do mesmo projeto Supabase
+usado pela equipe. O Flutter empacota esse arquivo. Use apenas configurações
+públicas nele.
 
-Verificação local:
+**Android:** ative a depuração USB, conecte o celular e aceite a autorização
+no aparelho. Use o identificador retornado por `flutter devices`.
 
-```bash
-flutter analyze lib test
+```powershell
+flutter run -d ID_DO_CELULAR
+```
+
+Com o aplicativo aberto, pressione `r` para recarregar, `R` para reiniciar
+ou `d` para encerrar a sessão de debug e deixar o app instalado no celular.
+
+**Web no Windows:** rode `flutter run -d edge`. Login, chat e fotos precisam
+de acesso ao Supabase.
+
+### Backend
+
+O Supabase fornece autenticação, Postgres com políticas de acesso, Realtime
+e Storage. Para desenvolver com o banco da equipe, use o projeto já configurado.
+Ao provisionar outro ambiente, prepare o esquema-base do InkFlow antes de aplicar
+as [migrations](supabase/migrations) em ordem numérica. Os primeiros scripts
+alteram tabelas preexistentes, como `public.profiles`.
+
+O envio de push tem configuração própria no servidor e usa a Edge Function
+[`process-push`](supabase/functions/process-push). Veja o [DER](Docs/DER.md)
+e o [índice da documentação](Docs/README.md).
+
+## Onde está o código
+
+| Área | Pasta |
+| --- | --- |
+| Cadastro, login e recuperação de senha | [`lib/features/auth`](lib/features/auth) |
+| Conta profissional e portfólio | [`lib/features/profile`](lib/features/profile) |
+| Busca e perfis públicos | [`lib/features/search`](lib/features/search) |
+| Conversas e propostas | [`lib/features/chat`](lib/features/chat) |
+| Agenda, anamnese e lembretes | [`lib/features/schedule`](lib/features/schedule) |
+| Gestão do estúdio, recibos, relatórios e DRE | [`lib/features/finance`](lib/features/finance) |
+| Indicadores financeiros | [`lib/features/dashboard`](lib/features/dashboard) |
+| Rotas e controle de acesso | [`lib/router.dart`](lib/router.dart) |
+
+## Verificações
+
+```powershell
+flutter analyze
 flutter test
 ```
-
----
-
-## Estrutura de pastas
-
-Organização por *feature*, cada uma com suas próprias camadas:
-
-```
-lib/
-├── main.dart                       # Bootstrap: .env, Supabase, locale pt_BR
-├── router.dart                     # go_router + guards de autenticação
-├── core/
-│   ├── data/supabase_providers.dart   # Cliente e sessão (injetáveis em teste)
-│   ├── errors/error_utils.dart        # Tradução de erros para o usuário
-│   ├── theme/app_theme.dart           # Cores e tema global
-│   ├── utils/                         # TimeSlot, PasswordPolicy
-│   └── widgets/shared_widgets.dart    # Componentes reutilizáveis
-└── features/
-    ├── auth/          # RF01 — login, cadastro, recuperação de senha
-    ├── chat/          # RF04/RF05 — inbox e conversa
-    ├── dashboard/     # RF10 — métricas e faturamento
-    ├── home/          # RF08 — home de cliente e de tatuador
-    ├── profile/       # RF02 — perfil, portfólio, notificações, privacidade
-    ├── schedule/      # RF06/RF07/RF09 — agenda, anamnese, lembretes
-    └── search/        # RF03 — busca de tatuadores
-
-supabase/migrations/    # Schema e políticas de acesso
-Docs/                   # Documentação do projeto
-test/                   # 63 testes
-tool/docs_pdf.js        # Gera o PDF da documentação
-```
-
-Cada feature segue `domain/` (modelos tipados) → `data/` (repositórios que falam
-com o Supabase) → `providers/` → `presentation/` (telas). Nenhuma tela chama o
-cliente do Supabase diretamente; é isso que torna as regras testáveis.
-
----
-
-## Requisitos funcionais
-
-Cenários BDD completos (RF01–RF10): **[Docs/requisitos-funcionais.md](Docs/requisitos-funcionais.md)**
-
-| RF | Tela | Situação |
-|---|---|---|
-| RF01 — Cadastro | `auth/register_screen` | Implementado (CPF, menoridade com responsável, duplicidade) |
-| RF02 — Perfil profissional | `profile/profile_setup_screen` | Implementado (estilos, preços, portfólio no Storage) |
-| RF03 — Busca | `search/search_screen` | Implementado sobre a view `artist_directory` |
-| RF04/RF05 — Chat e propostas | `chat/chat_screen` | Chat em tempo real implementado; **propostas em desenvolvimento** |
-| RF06 — Agenda manual | `schedule/schedule_screen` | Implementado, com conflito de horário barrado no banco |
-| RF07 — Anamnese | `schedule/anamnesis_screen` | **Pré-visualização** — não persiste nada |
-| RF08 — Agenda do dia | `home/artist_home_screen` | Implementado |
-| RF09 — Lembretes | `schedule/reminders_screen` | Preferência gravada; **disparo automático em desenvolvimento** |
-| RF10 — Dashboard | `dashboard/dashboard_screen` | **Dados de demonstração** |
-
-As telas ainda não concluídas exibem um aviso `UnderDevelopmentBanner`, para não
-apresentarem dados de demonstração como se fossem informação de produção.
-
----
-
-## Estado técnico
-
-A análise completa do código — segurança e LGPD, bugs, arquitetura, testes e
-infraestrutura — está em **[Docs/analise-tecnica.md](Docs/analise-tecnica.md)**
-([PDF](Docs/analise-tecnica.pdf)), com o que já foi corrigido e o que continua em
-aberto.
-
-Pontos em aberto de maior impacto:
-
-1. O projeto **não está sob controle de versão** (não existe `.git`).
-2. Não há CI rodando `flutter analyze` e `flutter test`.
-3. Arquivos de protótipo ainda no repositório (`telas.rar`, `telas/`,
-   `package.json` com `puppeteer-core`, `.idea/`, `inkflow.iml`).
-4. Acessibilidade (`Semantics`, escala de texto, contraste) e internacionalização.
-
----
-
-## Dependências
-
-| Pacote | Uso |
-|---|---|
-| `supabase_flutter` | Auth, Postgres, Realtime e Storage |
-| `flutter_riverpod` | Providers e injeção de dependências |
-| `go_router` | Navegação declarativa e guards de rota |
-| `flutter_dotenv` | Leitura de `SUPABASE_URL` e `SUPABASE_ANON_KEY` |
-| `cached_network_image` | Cache e fallback de imagens de rede |
-| `image_picker` | Seleção de fotos do portfólio |
-| `mask_text_input_formatter` | Máscaras de CPF, telefone e data |
-| `fl_chart` | Gráfico de barras do dashboard |
-| `google_fonts` | Fonte Inter |
-| `intl` + `flutter_localizations` | Formatação e componentes em pt-BR |

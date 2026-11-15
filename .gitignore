@@ -43,6 +43,7 @@ package-lock.json
 .DS_Store
 Thumbs.db
 hs_err_pid*.log
+flutter_*.log
 
 # Segredos
 .env
