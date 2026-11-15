@@ -412,6 +412,7 @@ class StudioManagementScreen extends ConsumerWidget {
     var recurring = false;
     XFile? receipt;
     var saving = false;
+    ModalRoute<void>? sheetRoute;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -420,431 +421,458 @@ class StudioManagementScreen extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            MediaQuery.viewInsetsOf(context).bottom + 24,
-          ),
-          child: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD9DDE2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    isPayment ? 'Registrar recebimento' : 'Registrar despesa',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF202A3A),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  if (isPayment && appointments.isNotEmpty) ...[
-                    DropdownButtonFormField<String?>(
-                      initialValue: appointmentId,
-                      decoration: const InputDecoration(
-                        labelText: 'Sessão vinculada (opcional)',
-                        prefixIcon: Icon(Icons.event_outlined),
-                      ),
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('Lançamento avulso'),
+      builder: (sheetContext) {
+        sheetRoute = ModalRoute.of<void>(sheetContext);
+        return StatefulBuilder(
+          builder: (context, setSheetState) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              12,
+              20,
+              MediaQuery.viewInsetsOf(context).bottom + 24,
+            ),
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD9DDE2),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                        ...appointments.map((appointment) => DropdownMenuItem(
-                              value: appointment.id,
-                              child: Text(
-                                '${appointment.clientName} · ${DateFormat('dd/MM').format(appointment.date)}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )),
-                      ],
-                      onChanged: (value) {
-                        appointmentId = value;
-                        if (value == null) return;
-                        final appointment =
-                            appointments.firstWhere((item) => item.id == value);
-                        customerNameController.text = appointment.clientName;
-                        descriptionController.text =
-                            'Sessão - ${appointment.clientName}';
-                        if (appointment.price > 0) {
-                          amountController.text = appointment.price
-                              .toStringAsFixed(2)
-                              .replaceAll('.', ',');
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  TextFormField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Descrição',
-                      prefixIcon: Icon(Icons.notes_rounded),
-                    ),
-                    validator: (value) => value == null || value.trim().isEmpty
-                        ? 'Informe uma descrição.'
-                        : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: amountController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Valor',
-                      prefixText: 'R\$ ',
-                      prefixIcon: Icon(Icons.payments_outlined),
-                    ),
-                    validator: (value) {
-                      final parsed = double.tryParse(
-                        (value ?? '').replaceAll('.', '').replaceAll(',', '.'),
-                      );
-                      return parsed == null || parsed <= 0
-                          ? 'Informe um valor válido.'
-                          : null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: option,
-                    decoration: InputDecoration(
-                      labelText: isPayment ? 'Forma de pagamento' : 'Categoria',
-                      prefixIcon: Icon(isPayment
-                          ? Icons.account_balance_wallet_outlined
-                          : Icons.category_outlined),
-                    ),
-                    items: (isPayment
-                            ? [
-                                'PIX',
-                                'DINHEIRO',
-                                'CARTAO',
-                                'TRANSFERENCIA',
-                                'OUTRO'
-                              ]
-                            : [
-                                'MATERIAIS',
-                                'ALUGUEL',
-                                'MARKETING',
-                                'EQUIPAMENTOS',
-                                'TAXAS',
-                                'COMISSOES',
-                                'IMPOSTOS',
-                                'ENERGIA',
-                                'CONTABILIDADE',
-                                'MANUTENCAO',
-                                'OUTROS'
-                              ])
-                        .map((value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(_friendlyLabel(value)),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setSheetState(() {
-                        option = value;
-                        if (!isPayment) dreClass = _defaultDreClass(value);
-                      });
-                    },
-                  ),
-                  if (!isPayment) ...[
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      key: ValueKey(dreClass),
-                      initialValue: dreClass,
-                      decoration: const InputDecoration(
-                        labelText: 'Classificação no DRE',
-                        prefixIcon: Icon(Icons.account_tree_outlined),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'VARIABLE_COST',
-                            child: Text('Custo variável')),
-                        DropdownMenuItem(
-                            value: 'OPERATING_EXPENSE',
-                            child: Text('Despesa operacional')),
-                        DropdownMenuItem(
-                            value: 'TAX', child: Text('Imposto ou taxa')),
-                        DropdownMenuItem(
-                            value: 'INVESTMENT', child: Text('Investimento')),
-                      ],
-                      onChanged: (value) => dreClass = value ?? dreClass,
-                    ),
-                    const SizedBox(height: 12),
-                    InkWell(
-                      onTap: () async {
-                        final selected = await showDatePicker(
-                          context: context,
-                          initialDate: expenseDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now(),
-                        );
-                        if (selected != null) {
-                          setSheetState(() => expenseDate = selected);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(14),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Data da despesa',
-                          prefixIcon: Icon(Icons.calendar_today_outlined),
-                        ),
-                        child:
-                            Text(DateFormat('dd/MM/yyyy').format(expenseDate)),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: notesController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Observações (opcional)',
-                        prefixIcon: Icon(Icons.notes_rounded),
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: recurring,
-                      activeTrackColor: InkFlowColors.accent,
-                      title: const Text('Repetir mensalmente',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
-                      subtitle: const Text(
-                          'Cria automaticamente esta despesa nos próximos meses.'),
-                      onChanged: (value) =>
-                          setSheetState(() => recurring = value),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final picked = await ImagePicker().pickImage(
-                          source: ImageSource.gallery,
-                          imageQuality: 85,
-                        );
-                        if (picked != null) {
-                          setSheetState(() => receipt = picked);
-                        }
-                      },
-                      icon: Icon(receipt == null
-                          ? Icons.attach_file_rounded
-                          : Icons.check_circle_outline_rounded),
-                      label: Text(receipt == null
-                          ? 'Anexar comprovante'
-                          : 'Comprovante selecionado'),
-                    ),
-                  ],
-                  if (isPayment) ...[
                     const SizedBox(height: 18),
-                    const Text(
-                      'Tomador do serviço',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                    Text(
+                      isPayment ? 'Registrar recebimento' : 'Registrar despesa',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF202A3A),
+                      ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 18),
+                    if (isPayment && appointments.isNotEmpty) ...[
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        initialValue: appointmentId,
+                        decoration: const InputDecoration(
+                          labelText: 'Sessão vinculada (opcional)',
+                          prefixIcon: Icon(Icons.event_outlined),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Lançamento avulso',
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          ...appointments.map((appointment) => DropdownMenuItem(
+                                value: appointment.id,
+                                child: Text(
+                                  '${appointment.clientName} · ${DateFormat('dd/MM').format(appointment.date)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              )),
+                        ],
+                        onChanged: (value) {
+                          appointmentId = value;
+                          if (value == null) return;
+                          final appointment = appointments
+                              .firstWhere((item) => item.id == value);
+                          customerNameController.text = appointment.clientName;
+                          descriptionController.text =
+                              'Sessão - ${appointment.clientName}';
+                          if (appointment.price > 0) {
+                            amountController.text = appointment.price
+                                .toStringAsFixed(2)
+                                .replaceAll('.', ',');
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     TextFormField(
-                      controller: customerNameController,
+                      controller: descriptionController,
                       decoration: const InputDecoration(
-                        labelText: 'Nome ou razão social',
-                        prefixIcon: Icon(Icons.person_outline),
+                        labelText: 'Descrição',
+                        prefixIcon: Icon(Icons.notes_rounded),
                       ),
                       validator: (value) =>
                           value == null || value.trim().isEmpty
-                              ? 'Informe o tomador do serviço.'
+                              ? 'Informe uma descrição.'
                               : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      controller: customerTaxIdController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        customerType == 'CPF' ? cpfMask : cnpjMask,
-                      ],
-                      decoration: InputDecoration(
-                        labelText: '$customerType (opcional)',
-                        prefixIcon: const Icon(Icons.badge_outlined),
-                        suffixIcon: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: customerType,
-                            padding: const EdgeInsets.only(right: 12),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'CPF', child: Text('CPF')),
-                              DropdownMenuItem(
-                                  value: 'CNPJ', child: Text('CNPJ')),
-                            ],
-                            onChanged: (value) {
-                              if (value == null) return;
-                              final digits = customerTaxIdController.text
-                                  .replaceAll(RegExp(r'\D'), '');
-                              setSheetState(() {
-                                customerType = value;
-                                customerTaxIdController.text = value == 'CPF'
-                                    ? cpfMask.maskText(digits)
-                                    : cnpjMask.maskText(digits);
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: customerEmailController,
-                      keyboardType: TextInputType.emailAddress,
+                      controller: amountController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
-                        labelText: 'E-mail (opcional)',
-                        prefixIcon: Icon(Icons.email_outlined),
+                        labelText: 'Valor',
+                        prefixText: 'R\$ ',
+                        prefixIcon: Icon(Icons.payments_outlined),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: customerPhoneController,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [phoneMask],
-                      decoration: const InputDecoration(
-                        labelText: 'Telefone (opcional)',
-                        prefixIcon: Icon(Icons.phone_outlined),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: customerAddressController,
-                      decoration: const InputDecoration(
-                        labelText: 'Endereço (opcional)',
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                      ),
+                      validator: (value) {
+                        final parsed = double.tryParse(
+                          (value ?? '')
+                              .replaceAll('.', '')
+                              .replaceAll(',', '.'),
+                        );
+                        return parsed == null || parsed <= 0
+                            ? 'Informe um valor válido.'
+                            : null;
+                      },
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      initialValue: paymentStatus,
-                      decoration: const InputDecoration(
-                        labelText: 'Situação',
-                        prefixIcon: Icon(Icons.task_alt_outlined),
+                      initialValue: option,
+                      decoration: InputDecoration(
+                        labelText:
+                            isPayment ? 'Forma de pagamento' : 'Categoria',
+                        prefixIcon: Icon(isPayment
+                            ? Icons.account_balance_wallet_outlined
+                            : Icons.category_outlined),
                       ),
-                      items: ['PAGO', 'PENDENTE', 'PARCIAL']
+                      items: (isPayment
+                              ? [
+                                  'PIX',
+                                  'DINHEIRO',
+                                  'CARTAO',
+                                  'TRANSFERENCIA',
+                                  'OUTRO'
+                                ]
+                              : [
+                                  'MATERIAIS',
+                                  'ALUGUEL',
+                                  'MARKETING',
+                                  'EQUIPAMENTOS',
+                                  'TAXAS',
+                                  'COMISSOES',
+                                  'IMPOSTOS',
+                                  'ENERGIA',
+                                  'CONTABILIDADE',
+                                  'MANUTENCAO',
+                                  'OUTROS'
+                                ])
                           .map((value) => DropdownMenuItem(
                                 value: value,
                                 child: Text(_friendlyLabel(value)),
                               ))
                           .toList(),
-                      onChanged: (value) =>
-                          paymentStatus = value ?? paymentStatus,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setSheetState(() {
+                          option = value;
+                          if (!isPayment) dreClass = _defaultDreClass(value);
+                        });
+                      },
                     ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: notesController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Observações (opcional)',
-                        prefixIcon: Icon(Icons.notes_rounded),
-                        alignLabelWithHint: true,
+                    if (!isPayment) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey(dreClass),
+                        initialValue: dreClass,
+                        decoration: const InputDecoration(
+                          labelText: 'Classificação no DRE',
+                          prefixIcon: Icon(Icons.account_tree_outlined),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'VARIABLE_COST',
+                              child: Text('Custo variável')),
+                          DropdownMenuItem(
+                              value: 'OPERATING_EXPENSE',
+                              child: Text('Despesa operacional')),
+                          DropdownMenuItem(
+                              value: 'TAX', child: Text('Imposto ou taxa')),
+                          DropdownMenuItem(
+                              value: 'INVESTMENT', child: Text('Investimento')),
+                        ],
+                        onChanged: (value) => dreClass = value ?? dreClass,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () async {
+                          final selected = await showDatePicker(
+                            context: context,
+                            initialDate: expenseDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                          );
+                          if (selected != null) {
+                            setSheetState(() => expenseDate = selected);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(14),
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Data da despesa',
+                            prefixIcon: Icon(Icons.calendar_today_outlined),
+                          ),
+                          child: Text(
+                              DateFormat('dd/MM/yyyy').format(expenseDate)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: notesController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Observações (opcional)',
+                          prefixIcon: Icon(Icons.notes_rounded),
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        value: recurring,
+                        activeTrackColor: InkFlowColors.accent,
+                        title: const Text('Repetir mensalmente',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        subtitle: const Text(
+                            'Cria automaticamente esta despesa nos próximos meses.'),
+                        onChanged: (value) =>
+                            setSheetState(() => recurring = value),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final picked = await ImagePicker().pickImage(
+                            source: ImageSource.gallery,
+                            imageQuality: 85,
+                          );
+                          if (picked != null) {
+                            setSheetState(() => receipt = picked);
+                          }
+                        },
+                        icon: Icon(receipt == null
+                            ? Icons.attach_file_rounded
+                            : Icons.check_circle_outline_rounded),
+                        label: Text(receipt == null
+                            ? 'Anexar comprovante'
+                            : 'Comprovante selecionado'),
+                      ),
+                    ],
+                    if (isPayment) ...[
+                      const SizedBox(height: 18),
+                      const Text(
+                        'Tomador do serviço',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: customerNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nome ou razão social',
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
+                        validator: (value) =>
+                            value == null || value.trim().isEmpty
+                                ? 'Informe o tomador do serviço.'
+                                : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: customerTaxIdController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          customerType == 'CPF' ? cpfMask : cnpjMask,
+                        ],
+                        decoration: InputDecoration(
+                          labelText: '$customerType (opcional)',
+                          prefixIcon: const Icon(Icons.badge_outlined),
+                          suffixIcon: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: customerType,
+                              padding: const EdgeInsets.only(right: 12),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'CPF', child: Text('CPF')),
+                                DropdownMenuItem(
+                                    value: 'CNPJ', child: Text('CNPJ')),
+                              ],
+                              onChanged: (value) {
+                                if (value == null) return;
+                                final digits = customerTaxIdController.text
+                                    .replaceAll(RegExp(r'\D'), '');
+                                setSheetState(() {
+                                  customerType = value;
+                                  customerTaxIdController.text = value == 'CPF'
+                                      ? cpfMask.maskText(digits)
+                                      : cnpjMask.maskText(digits);
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: customerEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'E-mail (opcional)',
+                          prefixIcon: Icon(Icons.email_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: customerPhoneController,
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [phoneMask],
+                        decoration: const InputDecoration(
+                          labelText: 'Telefone (opcional)',
+                          prefixIcon: Icon(Icons.phone_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: customerAddressController,
+                        decoration: const InputDecoration(
+                          labelText: 'Endereço (opcional)',
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: paymentStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'Situação',
+                          prefixIcon: Icon(Icons.task_alt_outlined),
+                        ),
+                        items: ['PAGO', 'PENDENTE', 'PARCIAL']
+                            .map((value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(_friendlyLabel(value)),
+                                ))
+                            .toList(),
+                        onChanged: (value) =>
+                            paymentStatus = value ?? paymentStatus,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: notesController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Observações (opcional)',
+                          prefixIcon: Icon(Icons.notes_rounded),
+                          alignLabelWithHint: true,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final picked = await ImagePicker().pickImage(
+                            source: ImageSource.gallery,
+                            imageQuality: 85,
+                          );
+                          if (picked != null) {
+                            setSheetState(() => receipt = picked);
+                          }
+                        },
+                        icon: Icon(receipt == null
+                            ? Icons.attach_file_rounded
+                            : Icons.check_circle_outline_rounded),
+                        label: Text(receipt == null
+                            ? 'Anexar comprovante'
+                            : 'Comprovante selecionado'),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    InkButton(
+                      label:
+                          isPayment ? 'Salvar recebimento' : 'Salvar despesa',
+                      isLoading: saving,
                       onPressed: () async {
-                        final picked = await ImagePicker().pickImage(
-                          source: ImageSource.gallery,
-                          imageQuality: 85,
-                        );
-                        if (picked != null) {
-                          setSheetState(() => receipt = picked);
+                        if (saving || !formKey.currentState!.validate()) return;
+                        final route = ModalRoute.of(sheetContext);
+                        setSheetState(() => saving = true);
+                        final amount = double.parse(amountController.text
+                            .replaceAll('.', '')
+                            .replaceAll(',', '.'));
+                        try {
+                          final repository =
+                              ref.read(financeRepositoryProvider);
+                          final description = descriptionController.text.trim();
+                          final customerName =
+                              customerNameController.text.trim();
+                          final customerTaxId =
+                              customerTaxIdController.text.trim();
+                          final customerEmail =
+                              customerEmailController.text.trim();
+                          final customerPhone =
+                              customerPhoneController.text.trim();
+                          final customerAddress =
+                              customerAddressController.text.trim();
+                          final notes = notesController.text.trim();
+                          final receiptBytes = await receipt?.readAsBytes();
+                          if (isPayment) {
+                            await repository.addPayment(
+                              description: description,
+                              amount: amount,
+                              method: option,
+                              status: paymentStatus,
+                              customerName: customerName,
+                              customerTaxId: customerTaxId,
+                              customerEmail: customerEmail,
+                              customerPhone: customerPhone,
+                              customerAddress: customerAddress,
+                              appointmentId: appointmentId,
+                              notes: notes.isEmpty ? null : notes,
+                              receiptBytes: receiptBytes,
+                              receiptName: receipt?.name,
+                              receiptMimeType: _receiptMimeType(receipt?.name),
+                            );
+                          } else {
+                            await repository.addExpense(
+                              description: description,
+                              amount: amount,
+                              category: option,
+                              dreClass: dreClass,
+                              date: expenseDate,
+                              notes: notes.isEmpty ? null : notes,
+                              recurring: recurring,
+                              receiptBytes: receiptBytes,
+                              receiptName: receipt?.name,
+                              receiptMimeType: _receiptMimeType(receipt?.name),
+                            );
+                          }
+                          if (context.mounted) {
+                            ref.invalidate(financialRecordsProvider);
+                          }
+                          if (sheetContext.mounted &&
+                              route?.isCurrent == true) {
+                            Navigator.pop(sheetContext);
+                          }
+                        } catch (error) {
+                          if (sheetContext.mounted && route?.isActive == true) {
+                            showErrorSnackBar(
+                              sheetContext,
+                              userFriendlyErrorMessage(error),
+                            );
+                            setSheetState(() => saving = false);
+                          }
                         }
                       },
-                      icon: Icon(receipt == null
-                          ? Icons.attach_file_rounded
-                          : Icons.check_circle_outline_rounded),
-                      label: Text(receipt == null
-                          ? 'Anexar comprovante'
-                          : 'Comprovante selecionado'),
                     ),
                   ],
-                  const SizedBox(height: 20),
-                  InkButton(
-                    label: isPayment ? 'Salvar recebimento' : 'Salvar despesa',
-                    isLoading: saving,
-                    onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      setSheetState(() => saving = true);
-                      final amount = double.parse(amountController.text
-                          .replaceAll('.', '')
-                          .replaceAll(',', '.'));
-                      try {
-                        final repository = ref.read(financeRepositoryProvider);
-                        final receiptBytes = await receipt?.readAsBytes();
-                        if (isPayment) {
-                          await repository.addPayment(
-                            description: descriptionController.text.trim(),
-                            amount: amount,
-                            method: option,
-                            status: paymentStatus,
-                            customerName: customerNameController.text.trim(),
-                            customerTaxId: customerTaxIdController.text.trim(),
-                            customerEmail: customerEmailController.text.trim(),
-                            customerPhone: customerPhoneController.text.trim(),
-                            customerAddress:
-                                customerAddressController.text.trim(),
-                            appointmentId: appointmentId,
-                            notes: notesController.text.trim().isEmpty
-                                ? null
-                                : notesController.text.trim(),
-                            receiptBytes: receiptBytes,
-                            receiptName: receipt?.name,
-                            receiptMimeType: _receiptMimeType(receipt?.name),
-                          );
-                        } else {
-                          await repository.addExpense(
-                            description: descriptionController.text.trim(),
-                            amount: amount,
-                            category: option,
-                            dreClass: dreClass,
-                            date: expenseDate,
-                            notes: notesController.text.trim().isEmpty
-                                ? null
-                                : notesController.text.trim(),
-                            recurring: recurring,
-                            receiptBytes: receiptBytes,
-                            receiptName: receipt?.name,
-                            receiptMimeType: _receiptMimeType(receipt?.name),
-                          );
-                        }
-                        ref.invalidate(financialRecordsProvider);
-                        if (sheetContext.mounted) Navigator.pop(sheetContext);
-                      } catch (error) {
-                        if (sheetContext.mounted) {
-                          showErrorSnackBar(
-                            sheetContext,
-                            userFriendlyErrorMessage(error),
-                          );
-                          setSheetState(() => saving = false);
-                        }
-                      }
-                    },
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
+    // The sheet still uses its controllers during the exit animation.
+    await sheetRoute?.completed;
     descriptionController.dispose();
     amountController.dispose();
     customerNameController.dispose();
