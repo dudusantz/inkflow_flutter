@@ -9,6 +9,7 @@ import 'package:inkflow/features/auth/presentation/auth_callback_screen.dart';
 import 'package:inkflow/features/auth/presentation/register_screen.dart';
 import 'package:inkflow/features/auth/presentation/splash_screen.dart';
 import 'package:inkflow/features/chat/presentation/chat_screen.dart';
+import 'package:inkflow/features/chat/domain/chat_message.dart';
 import 'package:inkflow/features/chat/presentation/inbox_screen.dart';
 import 'package:inkflow/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:inkflow/features/finance/presentation/dre_screen.dart';
@@ -107,6 +108,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/artist/:artistId',
         builder: (context, state) => ArtistProfileScreen(
           artistId: state.pathParameters['artistId']!,
+          chatContact: state.extra is ChatContact
+              ? state.extra as ChatContact
+              : null,
         ),
       ),
       GoRoute(path: '/inbox', builder: (context, state) => const InboxScreen()),

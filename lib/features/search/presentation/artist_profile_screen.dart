@@ -5,31 +5,44 @@ import 'package:go_router/go_router.dart';
 import 'package:inkflow/core/errors/error_utils.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
+import 'package:inkflow/features/chat/domain/chat_message.dart';
 import 'package:inkflow/features/search/data/artist_directory_repository.dart';
 import 'package:inkflow/features/search/domain/artist_summary.dart';
 
-final publicArtistProvider = FutureProvider.autoDispose
-    .family<ArtistSummary?, String>((ref, artistId) {
+final publicArtistProvider =
+    FutureProvider.autoDispose.family<ArtistSummary?, String>((ref, artistId) {
   return ref.watch(artistDirectoryRepositoryProvider).findById(artistId);
 });
 
 class ArtistProfileScreen extends ConsumerWidget {
   final String artistId;
+  final ChatContact? chatContact;
 
-  const ArtistProfileScreen({super.key, required this.artistId});
+  const ArtistProfileScreen(
+      {super.key, required this.artistId, this.chatContact});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final artistAsync = ref.watch(publicArtistProvider(artistId));
+    final contact = chatContact?.id == artistId ? chatContact : null;
+    final backBar = AppBar(
+      title: const Text('Perfil'),
+      leading: BackButton(
+        onPressed: () =>
+            context.canPop() ? context.pop() : context.go('/search'),
+      ),
+    );
 
     return artistAsync.when(
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
+        appBar: backBar,
         backgroundColor: InkFlowColors.background,
-        body: Center(
+        body: const Center(
           child: CircularProgressIndicator(color: InkFlowColors.accent),
         ),
       ),
       error: (error, stack) => Scaffold(
+        appBar: backBar,
         backgroundColor: InkFlowColors.background,
         body: SafeArea(
           child: AsyncErrorView(
@@ -40,9 +53,26 @@ class ArtistProfileScreen extends ConsumerWidget {
         ),
       ),
       data: (artist) => artist == null
-          ? const Scaffold(
+          ? Scaffold(
+              appBar: backBar,
               backgroundColor: InkFlowColors.background,
-              body: Center(child: Text('Perfil não encontrado.')),
+              body: contact == null
+                  ? const Center(child: Text('Perfil não encontrado.'))
+                  : Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AvatarImage(url: contact.avatarUrl, size: 80),
+                            const SizedBox(height: 16),
+                            Text(contact.name,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.titleLarge),
+                          ],
+                        ),
+                      ),
+                    ),
             )
           : _ArtistProfileContent(artist: artist),
     );
@@ -79,16 +109,16 @@ class _ArtistProfileContent extends StatelessWidget {
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new, size: 20),
               tooltip: 'Voltar',
-              onPressed: () => context.canPop()
-                  ? context.pop()
-                  : context.go('/search'),
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/search'),
             ),
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 fit: StackFit.expand,
                 children: [
                   NetworkImageWithFallback(
-                    url: artist.coverImageUrl,
+                    url: artist.avatarUrl,
+                    fallbackUrl: artist.coverImageUrl,
                     fallbackIcon: Icons.brush_outlined,
                   ),
                   const DecoratedBox(

@@ -509,6 +509,7 @@ class InkSurface extends StatelessWidget {
 /// mesma foto a cada rebuild.
 class NetworkImageWithFallback extends StatelessWidget {
   final String? url;
+  final String? fallbackUrl;
   final double? width;
   final double? height;
   final IconData fallbackIcon;
@@ -516,6 +517,7 @@ class NetworkImageWithFallback extends StatelessWidget {
   const NetworkImageWithFallback({
     super.key,
     required this.url,
+    this.fallbackUrl,
     this.width,
     this.height,
     this.fallbackIcon = Icons.image_not_supported_outlined,
@@ -524,7 +526,7 @@ class NetworkImageWithFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final source = url;
-    if (source == null || source.isEmpty) return _fallback();
+    if (source == null || source.isEmpty) return _fallbackImage();
 
     return CachedNetworkImage(
       imageUrl: source,
@@ -536,9 +538,18 @@ class NetworkImageWithFallback extends StatelessWidget {
         height: height,
         color: Colors.grey.shade200,
       ),
-      errorWidget: (_, __, ___) => _fallback(),
+      errorWidget: (_, __, ___) => _fallbackImage(),
     );
   }
+
+  Widget _fallbackImage() => fallbackUrl == null || fallbackUrl == url
+      ? _fallback()
+      : NetworkImageWithFallback(
+          url: fallbackUrl,
+          width: width,
+          height: height,
+          fallbackIcon: fallbackIcon,
+        );
 
   Widget _fallback() {
     return Container(

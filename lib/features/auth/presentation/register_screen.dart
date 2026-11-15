@@ -57,6 +57,8 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  bool _hidePassword = true;
+  bool _hideConfirmation = true;
 
   // Controller para monitorar a senha principal em tempo real
   final _passwordController = TextEditingController();
@@ -83,8 +85,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   bool get _isUnderage => _selectedDob != null && _selectedDob!.age < 18;
 
-  bool get _guardianValid =>
-      !_isUnderage || CpfValidator.isValid(_guardianCpf);
+  bool get _guardianValid => !_isUnderage || CpfValidator.isValid(_guardianCpf);
 
   @override
   void dispose() {
@@ -320,7 +321,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             _buildValidatedField(
               label: 'Senha *',
               controller: _passwordController,
-              obscureText: true,
+              obscureText: _hidePassword,
+              onToggleVisibility: () =>
+                  setState(() => _hidePassword = !_hidePassword),
               validator: (v) => v == null || v.length < 6
                   ? 'A senha deve ter no mínimo 6 caracteres'
                   : null,
@@ -329,7 +332,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             const SizedBox(height: 16),
             _buildValidatedField(
               label: 'Confirmar Senha *',
-              obscureText: true,
+              obscureText: _hideConfirmation,
+              onToggleVisibility: () =>
+                  setState(() => _hideConfirmation = !_hideConfirmation),
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Confirme sua senha';
                 if (v != _passwordController.text) {
@@ -431,7 +436,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     context.go('/');
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Use "Esqueceu a senha?" na tela de login para recuperar o acesso.'),
+        content: Text(
+            'Use "Esqueceu a senha?" na tela de login para recuperar o acesso.'),
         backgroundColor: Color(0xFF10B981),
       ),
     );
@@ -442,6 +448,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     required FormFieldValidator<String> validator,
     required FormFieldSetter<String> onSaved,
     bool obscureText = false,
+    VoidCallback? onToggleVisibility,
     bool hasError = false,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
@@ -465,6 +472,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           onChanged: onChanged,
           style: const TextStyle(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
+            suffixIcon: onToggleVisibility == null
+                ? null
+                : IconButton(
+                    tooltip: obscureText ? 'Mostrar senha' : 'Ocultar senha',
+                    onPressed: onToggleVisibility,
+                    icon: Icon(
+                      obscureText
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                  ),
             filled: true,
             fillColor: const Color(0x1AFFFFFF),
             border: OutlineInputBorder(

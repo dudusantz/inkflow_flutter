@@ -33,8 +33,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     _loadError = null;
     if (shouldRebuild && mounted) setState(() {});
     try {
-      final conversations =
-          await ref.read(chatRepositoryProvider).fetchInbox();
+      final conversations = await ref.read(chatRepositoryProvider).fetchInbox();
       if (!mounted) return;
       setState(() => _conversations = conversations);
     } catch (error) {
@@ -56,20 +55,12 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       appBar: AppBar(
         backgroundColor: InkFlowColors.primary,
         automaticallyImplyLeading: false,
-        toolbarHeight: 88,
+        toolbarHeight: 64,
         titleSpacing: 20,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Mensagens',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800)),
-            SizedBox(height: 4),
-            Text('Conversas com seus tatuadores e clientes',
-                style: TextStyle(color: Colors.white60, fontSize: 12)),
-          ],
+        title: const Text(
+          'Mensagens',
+          style: TextStyle(
+              color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
         ),
       ),
       body: Column(
@@ -150,18 +141,12 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
             child: Row(
               children: [
                 Text(
-                  query.isEmpty
-                      ? 'Conversas recentes'
-                      : '${filtered.length} resultado(s)',
+                  query.isEmpty ? 'Conversas recentes' : 'Resultados da busca',
                   style: const TextStyle(
                       color: InkFlowColors.primary,
                       fontSize: 14,
                       fontWeight: FontWeight.w700),
                 ),
-                const Spacer(),
-                Text('${conversations.length} conversa(s)',
-                    style: const TextStyle(
-                        color: InkFlowColors.textMuted, fontSize: 11)),
               ],
             ),
           );
@@ -169,12 +154,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
         final conversation = filtered[index - 1];
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
-          child: SizedBox(
-            height: 86,
-            child: _ConversationCard(
-              key: ValueKey(conversation.contactId),
-              conversation: conversation,
-            ),
+          child: _ConversationCard(
+            key: ValueKey(conversation.contactId),
+            conversation: conversation,
           ),
         );
       },
@@ -312,17 +294,24 @@ class _ConversationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isProposal = const {
+      'Proposta enviada',
+      'Proposta recebida',
+      'Proposta aceita',
+      'Proposta recusada',
+      'Proposta cancelada',
+    }.contains(conversation.lastMessage);
     final attachmentIcon = switch (conversation.lastMessage) {
       '📷 Foto' => Icons.image_outlined,
       '🎬 Vídeo' => Icons.videocam_outlined,
       '🎤 Áudio' => Icons.mic_none_rounded,
-      _ => null,
+      _ => isProposal ? Icons.request_quote_outlined : null,
     };
     final cleanLastMessage = conversation.lastMessage
         .replaceFirst('📷 ', '')
         .replaceFirst('🎬 ', '')
         .replaceFirst('🎤 ', '');
-    final previewText = conversation.lastMessageIsMine
+    final previewText = conversation.lastMessageIsMine && !isProposal
         ? 'Você: $cleanLastMessage'
         : cleanLastMessage;
     return Material(
@@ -338,27 +327,11 @@ class _ConversationCard extends StatelessWidget {
               border: Border.all(color: InkFlowColors.border)),
           child: Row(
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  AvatarImage(url: conversation.contactAvatarUrl, size: 54),
-                  Positioned(
-                    right: -1,
-                    bottom: -1,
-                    child: Container(
-                      width: 15,
-                      height: 15,
-                      decoration: BoxDecoration(
-                          color: InkFlowColors.accent,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2)),
-                    ),
-                  ),
-                ],
-              ),
+              AvatarImage(url: conversation.contactAvatarUrl, size: 50),
               const SizedBox(width: 13),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
@@ -372,6 +345,7 @@ class _ConversationCard extends StatelessWidget {
                                   fontSize: 15,
                                   color: InkFlowColors.primary)),
                         ),
+                        const SizedBox(width: 8),
                         Text(conversation.timeLabel(),
                             style: const TextStyle(
                                 color: InkFlowColors.textMuted, fontSize: 10)),
@@ -390,8 +364,12 @@ class _ConversationCard extends StatelessWidget {
                             previewText,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: InkFlowColors.textMuted, fontSize: 12),
+                            style: TextStyle(
+                                color: isProposal
+                                    ? InkFlowColors.accentDark
+                                    : InkFlowColors.textMuted,
+                                fontWeight: isProposal ? FontWeight.w600 : null,
+                                fontSize: 13),
                           ),
                         ),
                         const Icon(Icons.chevron_right_rounded,

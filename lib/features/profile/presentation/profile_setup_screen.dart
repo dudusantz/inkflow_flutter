@@ -145,6 +145,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       setState(() => _isLoading = false);
       await _showSuccessModal();
       if (mounted) context.go('/home');
+    } on FormatException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      showErrorSnackBar(context, e.message);
     } on StorageException catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);

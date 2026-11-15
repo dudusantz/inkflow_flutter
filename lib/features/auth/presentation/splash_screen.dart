@@ -19,6 +19,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   String _email = '';
   String _password = '';
   bool _isLoading = false;
+  bool _hidePassword = true;
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -194,7 +195,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                         const SizedBox(height: 7),
                         _darkInput(
                           hint: '••••••••',
-                          obscure: true,
+                          obscure: _hidePassword,
+                          onToggleVisibility: () =>
+                              setState(() => _hidePassword = !_hidePassword),
                           validator: (v) => v == null || v.isEmpty
                               ? 'Informe sua senha'
                               : null,
@@ -281,6 +284,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     FormFieldValidator<String>? validator,
     TextInputType? keyboardType,
     bool obscure = false,
+    VoidCallback? onToggleVisibility,
   }) {
     return TextFormField(
       obscureText: obscure,
@@ -289,6 +293,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       onSaved: onSaved,
       style: const TextStyle(color: Colors.white, fontSize: 14),
       decoration: InputDecoration(
+        suffixIcon: onToggleVisibility == null
+            ? null
+            : IconButton(
+                tooltip: obscure ? 'Mostrar senha' : 'Ocultar senha',
+                onPressed: onToggleVisibility,
+                icon: Icon(
+                  obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  color: Colors.white70,
+                  size: 20,
+                ),
+              ),
         hintText: hint,
         hintStyle: const TextStyle(color: Color(0x33FFFFFF)),
         filled: true,
