@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mime/mime.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:inkflow/core/data/supabase_providers.dart';
@@ -74,14 +75,24 @@ class ProfileRepository {
   /// tatuador com o perfil ativo e o portfolio incompleto.
   Future<String> uploadPortfolioImage(Uint8List bytes, int index) async {
     final user = _requireUser();
-    final path = '${user.id}/portfolio_$index.jpg';
+    final contentType = lookupMimeType('', headerBytes: bytes);
+    final extension = const {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+    }[contentType];
+    if (extension == null) {
+      throw const FormatException('Use uma imagem JPEG, PNG, WebP ou GIF.');
+    }
+    final path = '${user.id}/portfolio_$index.$extension';
 
     await _supabase.storage.from('portfolio').uploadBinary(
           path,
           bytes,
-          fileOptions: const FileOptions(
+          fileOptions: FileOptions(
             upsert: true,
-            contentType: 'image/jpeg',
+            contentType: contentType,
           ),
         );
 

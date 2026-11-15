@@ -638,6 +638,7 @@ class _ArtistCard extends StatelessWidget {
                         const BorderRadius.vertical(top: Radius.circular(20)),
                     child: NetworkImageWithFallback(
                       url: artist.coverImageUrl,
+                      fallbackUrl: artist.avatarUrl,
                       fallbackIcon: Icons.camera_alt_outlined,
                     ),
                   ),

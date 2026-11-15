@@ -123,7 +123,7 @@ class ChatMessage {
           : proposalEventStatus == proposalRejected
               ? 'Proposta recusada'
               : isProposal
-                  ? '📋 Proposta enviada'
+                  ? (isMine ? 'Proposta enviada' : 'Proposta recebida')
                   : content;
 
   static String encodeProposal(Map<String, dynamic> values) =>

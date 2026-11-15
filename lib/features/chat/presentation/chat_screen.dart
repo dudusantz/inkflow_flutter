@@ -419,9 +419,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _showProposalForm() async {
     final formKey = GlobalKey<FormState>();
-    final serviceController = TextEditingController();
-    final amountController = TextEditingController();
-    final notesController = TextEditingController();
+    var service = '';
+    var amount = 0.0;
+    var notes = '';
     DateTime? scheduledDate;
     TimeOfDay? scheduledTime;
     var durationMinutes = 60;
@@ -483,7 +483,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 TextFormField(
-                  controller: serviceController,
+                  onSaved: (value) => service = value!.trim(),
                   decoration: const InputDecoration(
                     hintText: 'Ex.: tatuagem no antebraço',
                     prefixIcon: Icon(Icons.design_services_outlined),
@@ -497,7 +497,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 TextFormField(
-                  controller: amountController,
+                  onSaved: (value) => amount = double.parse(
+                      value!.replaceAll('.', '').replaceAll(',', '.')),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
@@ -631,7 +632,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 TextFormField(
-                  controller: notesController,
+                  onSaved: (value) => notes = value?.trim() ?? '',
                   maxLines: 3,
                   decoration: const InputDecoration(
                     hintText: 'Inclua detalhes importantes (opcional)',
@@ -642,6 +643,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   label: 'Enviar proposta',
                   isLoading: sending,
                   onPressed: () async {
+                    if (sending) return;
                     final validFields = formKey.currentState!.validate();
                     setSheetState(() => showScheduleErrors = true);
                     if (!validFields ||
@@ -667,26 +669,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       scheduledTime!.minute,
                     );
                     setSheetState(() => sending = true);
-                    final amount = double.parse(amountController.text
-                        .replaceAll('.', '')
-                        .replaceAll(',', '.'));
+                    formKey.currentState!.save();
+                    final sheetRoute = ModalRoute.of(sheetContext);
                     try {
                       await ref.read(chatRepositoryProvider).sendMessage(
                             receiverId: widget.contactId,
                             content: ChatMessage.encodeProposal({
-                              'service': serviceController.text.trim(),
+                              'service': service,
                               'amount': amount,
                               'date': scheduledDate!.toIso8601String(),
                               'time':
                                   '${scheduledTime!.hour.toString().padLeft(2, '0')}:${scheduledTime!.minute.toString().padLeft(2, '0')}',
                               'startsAt': startsAt.toUtc().toIso8601String(),
                               'durationMinutes': durationMinutes,
-                              'notes': notesController.text.trim(),
+                              'notes': notes,
                             }),
                           );
-                      if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      if (sheetContext.mounted &&
+                          sheetRoute?.isCurrent == true) {
+                        Navigator.pop(sheetContext);
+                      }
                     } catch (error) {
-                      if (sheetContext.mounted) {
+                      if (sheetContext.mounted &&
+                          sheetRoute?.isActive == true) {
                         showErrorSnackBar(
                             sheetContext, userFriendlyErrorMessage(error));
                         setSheetState(() => sending = false);
@@ -700,9 +705,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
       ),
     );
-    serviceController.dispose();
-    amountController.dispose();
-    notesController.dispose();
   }
 
   Future<void> _openAnamnesis(ChatMessage message) async {
@@ -956,7 +958,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       title: InkWell(
         onTap: contact == null
             ? null
-            : () => context.push('/artist/${contact.id}'),
+            : () => context.push('/artist/${contact.id}', extra: contact),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -1219,6 +1221,7 @@ class _MessageBubble extends StatelessWidget {
                       if (message.proposal case final proposal?)
                         _ProposalCard(
                           proposal: proposal,
+                          isMine: isMine,
                           status: proposalStatus,
                           onCancel: onCancelProposal,
                           onAccept: onAcceptProposal,
@@ -1257,6 +1260,7 @@ class _MessageBubble extends StatelessWidget {
 
 class _ProposalCard extends StatelessWidget {
   final Map<String, dynamic> proposal;
+  final bool isMine;
   final String status;
   final VoidCallback? onCancel;
   final VoidCallback? onAccept;
@@ -1265,6 +1269,7 @@ class _ProposalCard extends StatelessWidget {
 
   const _ProposalCard({
     required this.proposal,
+    required this.isMine,
     required this.status,
     this.onCancel,
     this.onAccept,
@@ -1296,7 +1301,7 @@ class _ProposalCard extends StatelessWidget {
       ChatMessage.proposalRejected => 'Recusada',
       ChatMessage.proposalCancelled => 'Cancelada',
       'expired' => 'Expirada',
-      _ => 'Enviada',
+      _ => isMine ? 'Enviada' : 'Recebida',
     };
     final statusColor = switch (displayStatus) {
       ChatMessage.proposalAccepted => InkFlowColors.accent,

@@ -66,6 +66,15 @@ void main() {
     expect(message.isProposal, isTrue);
     expect(message.proposal?['service'], 'Tatuagem autoral');
     expect(message.proposal?['amount'], 450.0);
-    expect(message.previewText, '📋 Proposta enviada');
+    expect(message.previewText, 'Proposta enviada');
+    final received = ChatMessage(
+      id: message.id,
+      senderId: message.senderId,
+      receiverId: message.receiverId,
+      content: content,
+      createdAt: message.createdAt,
+      isMine: false,
+    );
+    expect(received.previewText, 'Proposta recebida');
   });
 }

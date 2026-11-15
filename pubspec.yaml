@@ -17,6 +17,7 @@ dependencies:
   intl: ^0.20.2
   google_fonts: ^6.2.1
   image_picker: ^1.2.2
+  mime: ^2.0.0
   just_audio: ^0.10.6
   record: ^7.1.1
   video_player: ^2.14.0
