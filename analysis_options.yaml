@@ -7,6 +7,13 @@ analyzer:
     - "linux/flutter/ephemeral/**"
     - "windows/flutter/ephemeral/**"
     - "macos/Flutter/ephemeral/**"
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     invalid_annotation_target: ignore
 
