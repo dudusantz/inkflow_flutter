@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,6 +88,7 @@ class _StartupErrorApp extends StatelessWidget {
       title: 'InkFlow',
       debugShowCheckedModeBanner: false,
       theme: InkFlowTheme.theme,
+      builder: _keepClearOfAndroidBars,
       home: Scaffold(
         body: Center(
           child: Padding(
@@ -141,6 +144,7 @@ class InkFlowApp extends ConsumerWidget {
       title: 'InkFlow',
       debugShowCheckedModeBanner: false,
       theme: InkFlowTheme.theme,
+      builder: _keepClearOfAndroidBars,
       routerConfig: router,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -153,4 +157,21 @@ class InkFlowApp extends ConsumerWidget {
       locale: const Locale('pt', 'BR'),
     );
   }
+}
+
+Widget _keepClearOfAndroidBars(BuildContext context, Widget? child) {
+  if (child == null) return const SizedBox.shrink();
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return child;
+
+  return AnnotatedRegion<SystemUiOverlayStyle>(
+    value: SystemUiOverlayStyle.dark.copyWith(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ),
+    child: ColoredBox(
+      color: InkFlowColors.background,
+      child: SafeArea(child: child),
+    ),
+  );
 }

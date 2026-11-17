@@ -3,6 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inkflow/features/chat/domain/chat_message.dart';
 
 void main() {
+  test('usa o instante gravado e interpreta horários legados em São Paulo', () {
+    final legacy = {'date': '2026-11-17', 'time': '18:56:30'};
+    expect(proposalStartAt(legacy)?.toUtc(),
+        DateTime.utc(2026, 11, 17, 21, 56, 30));
+    expect(
+      proposalStartAt({...legacy, 'startsAt': '2026-11-16T21:56:00Z'}),
+      DateTime.utc(2026, 11, 16, 21, 56),
+    );
+    expect(proposalStartAt({...legacy, 'time': '27:00'}), isNull);
+  });
+
   test('proposta só aceita data e horário futuros', () {
     final now = DateTime(2026, 9, 26, 15, 30);
     expect(isFutureProposalSchedule(now, 15, 29, now), isFalse);

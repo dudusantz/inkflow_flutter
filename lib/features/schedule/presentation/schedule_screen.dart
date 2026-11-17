@@ -266,11 +266,14 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   void _openSessionDetails(Appointment session, bool isArtist) {
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (sheetContext) {
-        return Padding(
-          padding: const EdgeInsets.all(24),
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+              24, 24, 24, 24 + MediaQuery.paddingOf(sheetContext).bottom),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

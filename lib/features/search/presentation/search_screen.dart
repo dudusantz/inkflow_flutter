@@ -31,12 +31,6 @@ class SearchFilters {
     this.city = _allCities,
   });
 
-  bool get isEmpty =>
-      query.trim().isEmpty &&
-      style == _allStyles &&
-      state == _allStates &&
-      city == _allCities;
-
   SearchFilters copyWith({
     String? query,
     String? style,
@@ -84,16 +78,7 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _queryController = TextEditingController();
 
-  /// Filtros em edição (o que o usuário está montando).
-  SearchFilters _draft = const SearchFilters();
-
-  /// Filtros efetivamente aplicados à lista.
-  ///
-  /// Antes existia apenas um conjunto: a filtragem acontecia a cada tecla e o
-  /// botão "Buscar Tatuadores" só acendia uma mensagem de erro, sem efeito.
-  SearchFilters? _applied;
-
-  bool _showValidationError = false;
+  SearchFilters _filters = const SearchFilters();
 
   final List<({String name, IconData icon})> _styleOptions = const [
     (name: _allStyles, icon: Icons.grid_view_rounded),
@@ -103,6 +88,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     (name: 'Aquarela', icon: Icons.palette_outlined),
     (name: 'Old School', icon: Icons.anchor_rounded),
     (name: 'Minimalista', icon: Icons.horizontal_rule_rounded),
+    (name: 'New School', icon: Icons.brush_outlined),
+    (name: 'Tribal', icon: Icons.brush_outlined),
+    (name: 'Japonês', icon: Icons.brush_outlined),
+    (name: 'Neo-Tradicional', icon: Icons.brush_outlined),
   ];
 
   @override
@@ -114,18 +103,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _runSearch() {
     FocusScope.of(context).unfocus();
 
-    if (_draft.isEmpty) {
-      setState(() => _showValidationError = true);
-      showErrorSnackBar(
-        context,
-        'Selecione ao menos um estilo, uma localização ou digite um nome.',
-      );
-      return;
-    }
-
     setState(() {
-      _showValidationError = false;
-      _applied = _draft;
+      _filters = _filters.copyWith(query: _queryController.text);
     });
   }
 
@@ -158,9 +137,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Scaffold(
       backgroundColor: InkFlowColors.background,
       body: SafeArea(
-        bottom: false,
         child: artistsAsync.when(
-          loading: () => const Padding(
+          loading: () => const SingleChildScrollView(
             padding: EdgeInsets.all(16),
             child: Column(
               children: [
@@ -176,16 +154,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             onRetry: () => ref.invalidate(artistsSearchProvider),
           ),
           data: (allArtists) {
-            final filters = _applied;
-            final results =
-                filters == null ? allArtists : filters.apply(allArtists);
-
-            return Column(
-              children: [
-                _buildHeader(allArtists),
-                _buildStyleChips(),
-                _buildSectionTitle(results.length),
-                Expanded(child: _buildResultsGrid(results)),
+            final results = _filters.apply(allArtists);
+            return CustomScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                SliverToBoxAdapter(child: _buildHeader(allArtists)),
+                SliverToBoxAdapter(child: _buildStyleChips()),
+                SliverToBoxAdapter(child: _buildSectionTitle(results.length)),
+                _buildResultsGrid(results),
               ],
             );
           },
@@ -244,7 +220,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                _draft.locationLabel,
+                                _filters.locationLabel,
                                 style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -276,12 +252,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               controller: _queryController,
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _runSearch(),
-              onChanged: (value) => setState(() {
-                _draft = _draft.copyWith(query: value);
-                _showValidationError = false;
-              }),
               style: const TextStyle(color: Colors.white, fontSize: 16),
               decoration: InputDecoration(
+                filled: false,
                 hintText: 'Buscar tatuador pelo nome...',
                 hintStyle: TextStyle(
                     color: Colors.white.withValues(alpha: 0.5), fontSize: 15),
@@ -311,14 +284,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
           ),
-          if (_showValidationError)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Selecione estilo, localização ou digite um nome.',
-                style: TextStyle(color: Colors.red.shade300, fontSize: 12),
-              ),
-            ),
         ],
       ),
     );
@@ -334,7 +299,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: _styleOptions.map((option) {
-            final isSelected = _draft.style == option.name;
+            final isSelected = _filters.style == option.name;
 
             return Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -343,8 +308,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 button: true,
                 child: GestureDetector(
                   onTap: () => setState(() {
-                    _draft = _draft.copyWith(style: option.name);
-                    _showValidationError = false;
+                    _filters = _filters.copyWith(
+                        style: option.name, query: _queryController.text);
                   }),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
@@ -406,17 +371,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Inspirações para você',
-              style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: InkFlowColors.primary)),
+          const Expanded(
+            child: Text('Inspirações para você',
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: InkFlowColors.primary)),
+          ),
+          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
                 color: InkFlowColors.accent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12)),
-            child: Text('$count profissionais',
+            child: Text(count == 1 ? '1 profissional' : '$count profissionais',
                 style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -429,7 +397,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildResultsGrid(List<ArtistSummary> results) {
     if (results.isEmpty) {
-      return Center(
+      return SliverFillRemaining(
+        hasScrollBody: false,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -454,16 +423,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
-    return GridView.builder(
+    return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 0.65,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+      sliver: SliverGrid.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.65,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: results.length,
+        itemBuilder: (context, index) => _ArtistCard(artist: results[index]),
       ),
-      itemCount: results.length,
-      itemBuilder: (context, index) => _ArtistCard(artist: results[index]),
     );
   }
 
@@ -473,8 +444,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        var pendingState = _draft.state;
-        var pendingCity = _draft.city;
+        var pendingState = _filters.state;
+        var pendingCity = _filters.city;
 
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -557,9 +528,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         setState(() {
-                          _draft = _draft.copyWith(
-                              state: pendingState, city: pendingCity);
-                          _showValidationError = false;
+                          _filters = _filters.copyWith(
+                              state: pendingState,
+                              city: pendingCity,
+                              query: _queryController.text);
                         });
                         Navigator.pop(sheetContext);
                       },

@@ -432,274 +432,291 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: InkFlowColors.background,
       showDragHandle: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-              22, 4, 22, MediaQuery.viewInsetsOf(context).bottom + 24),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(11),
-                      decoration: BoxDecoration(
-                        color: InkFlowColors.accent.withValues(alpha: .18),
-                        borderRadius: BorderRadius.circular(14),
+      builder: (sheetContext) => Focus(
+        skipTraversal: true,
+        child: StatefulBuilder(
+          builder: (context, setSheetState) => SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              22,
+              4,
+              22,
+              MediaQuery.viewInsetsOf(context).bottom +
+                  MediaQuery.paddingOf(context).bottom +
+                  24,
+            ),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(11),
+                        decoration: BoxDecoration(
+                          color: InkFlowColors.accent.withValues(alpha: .18),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.request_quote_outlined,
+                            color: InkFlowColors.accentDark),
                       ),
-                      child: const Icon(Icons.request_quote_outlined,
-                          color: InkFlowColors.accentDark),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Nova proposta',
-                              style: TextStyle(
-                                  color: InkFlowColors.text,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800)),
-                          SizedBox(height: 2),
-                          Text('Combine os detalhes com o cliente',
-                              style: TextStyle(
-                                  color: InkFlowColors.textMuted,
-                                  fontSize: 13)),
-                        ],
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Nova proposta',
+                                style: TextStyle(
+                                    color: InkFlowColors.text,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800)),
+                            SizedBox(height: 2),
+                            Text('Combine os detalhes com o cliente',
+                                style: TextStyle(
+                                    color: InkFlowColors.textMuted,
+                                    fontSize: 13)),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                const Text('Serviço *',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                TextFormField(
-                  onSaved: (value) => service = value!.trim(),
-                  decoration: const InputDecoration(
-                    hintText: 'Ex.: tatuagem no antebraço',
-                    prefixIcon: Icon(Icons.design_services_outlined),
+                    ],
                   ),
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? 'Informe o serviço.'
-                      : null,
-                ),
-                const SizedBox(height: 18),
-                const Text('Valor combinado *',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                TextFormField(
-                  onSaved: (value) => amount = double.parse(
-                      value!.replaceAll('.', '').replaceAll(',', '.')),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    hintText: '0,00',
-                    prefixIcon: Padding(
-                      padding: EdgeInsets.only(left: 14, right: 10),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.payments_outlined),
-                          SizedBox(width: 10),
-                          Text('R\$'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  validator: (value) {
-                    final amount = double.tryParse(
-                        (value ?? '').replaceAll('.', '').replaceAll(',', '.'));
-                    return amount == null || amount <= 0
-                        ? 'Informe um valor válido.'
-                        : null;
-                  },
-                ),
-                const SizedBox(height: 18),
-                const Text('Data *',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 730)),
-                    );
-                    if (picked != null) {
-                      setSheetState(() {
-                        scheduledDate = picked;
-                        scheduleInPast = false;
-                      });
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(14),
-                  child: InputDecorator(
+                  const SizedBox(height: 24),
+                  const Text('Serviço *',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    onSaved: (value) => service = value!.trim(),
                     decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.calendar_today_outlined),
-                    ).copyWith(
-                      errorText: showScheduleErrors && scheduledDate == null
-                          ? 'Selecione uma data.'
-                          : null,
+                      hintText: 'Ex.: tatuagem no antebraço',
+                      prefixIcon: Icon(Icons.design_services_outlined),
                     ),
-                    child: Text(
-                      scheduledDate == null
-                          ? 'Escolher data'
-                          : DateFormat('dd/MM/yyyy').format(scheduledDate!),
-                      style: TextStyle(
-                        color: scheduledDate == null
-                            ? InkFlowColors.textMuted
-                            : InkFlowColors.text,
-                      ),
-                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Informe o serviço.'
+                        : null,
                   ),
-                ),
-                const SizedBox(height: 18),
-                const Text('Horário *',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: () async {
-                    final picked = await showTimePicker(
-                      context: context,
-                      initialTime: scheduledTime ?? TimeOfDay.now(),
-                    );
-                    if (picked != null) {
-                      setSheetState(() {
-                        scheduledTime = picked;
-                        scheduleInPast = false;
-                      });
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(14),
-                  child: InputDecorator(
+                  const SizedBox(height: 18),
+                  const Text('Valor combinado *',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    onSaved: (value) => amount = double.parse(
+                        value!.replaceAll('.', '').replaceAll(',', '.')),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.access_time_outlined),
-                    ).copyWith(
-                      errorText: showScheduleErrors && scheduledTime == null
-                          ? 'Selecione um horário.'
-                          : scheduleInPast
-                              ? 'Escolha uma data e horário futuros.'
-                              : null,
+                      hintText: '0,00',
+                      prefixIcon: Padding(
+                        padding: EdgeInsets.only(left: 14, right: 10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.payments_outlined),
+                            SizedBox(width: 10),
+                            Text('R\$'),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      scheduledTime == null
-                          ? 'Escolher horário'
-                          : '${scheduledTime!.hour.toString().padLeft(2, '0')}:${scheduledTime!.minute.toString().padLeft(2, '0')}',
-                      style: TextStyle(
-                        color: scheduledTime == null
-                            ? InkFlowColors.textMuted
-                            : InkFlowColors.text,
+                    validator: (value) {
+                      final amount = double.tryParse((value ?? '')
+                          .replaceAll('.', '')
+                          .replaceAll(',', '.'));
+                      return amount == null || amount <= 0
+                          ? 'Informe um valor válido.'
+                          : null;
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  const Text('Data *',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      Focus.of(context).requestFocus();
+                      final picked = await showDatePicker(
+                        context: context,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 730)),
+                      );
+                      if (!context.mounted) return;
+                      Focus.of(context).requestFocus();
+                      if (picked != null) {
+                        setSheetState(() {
+                          scheduledDate = picked;
+                          scheduleInPast = false;
+                        });
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.calendar_today_outlined),
+                      ).copyWith(
+                        errorText: showScheduleErrors && scheduledDate == null
+                            ? 'Selecione uma data.'
+                            : null,
+                      ),
+                      child: Text(
+                        scheduledDate == null
+                            ? 'Escolher data'
+                            : DateFormat('dd/MM/yyyy').format(scheduledDate!),
+                        style: TextStyle(
+                          color: scheduledDate == null
+                              ? InkFlowColors.textMuted
+                              : InkFlowColors.text,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                const Text('Duração estimada *',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<int>(
-                  initialValue: durationMinutes,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.timelapse_rounded),
-                  ),
-                  items: const [30, 60, 90, 120, 180, 240]
-                      .map((minutes) => DropdownMenuItem(
-                            value: minutes,
-                            child: Text(minutes < 60
-                                ? '$minutes min'
-                                : minutes % 60 == 0
-                                    ? '${minutes ~/ 60} h'
-                                    : '${minutes ~/ 60} h ${minutes % 60} min'),
-                          ))
-                      .toList(),
-                  onChanged: sending
-                      ? null
-                      : (value) => setSheetState(
-                            () => durationMinutes = value ?? 60,
-                          ),
-                ),
-                const SizedBox(height: 18),
-                const Text('Observações',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                TextFormField(
-                  onSaved: (value) => notes = value?.trim() ?? '',
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    hintText: 'Inclua detalhes importantes (opcional)',
-                  ),
-                ),
-                const SizedBox(height: 24),
-                InkButton(
-                  label: 'Enviar proposta',
-                  isLoading: sending,
-                  onPressed: () async {
-                    if (sending) return;
-                    final validFields = formKey.currentState!.validate();
-                    setSheetState(() => showScheduleErrors = true);
-                    if (!validFields ||
-                        scheduledDate == null ||
-                        scheduledTime == null) {
-                      return;
-                    }
-                    final isFuture = isFutureProposalSchedule(
-                      scheduledDate!,
-                      scheduledTime!.hour,
-                      scheduledTime!.minute,
-                      DateTime.now(),
-                    );
-                    setSheetState(() => scheduleInPast = !isFuture);
-                    if (!isFuture) {
-                      return;
-                    }
-                    final startsAt = DateTime(
-                      scheduledDate!.year,
-                      scheduledDate!.month,
-                      scheduledDate!.day,
-                      scheduledTime!.hour,
-                      scheduledTime!.minute,
-                    );
-                    setSheetState(() => sending = true);
-                    formKey.currentState!.save();
-                    final sheetRoute = ModalRoute.of(sheetContext);
-                    try {
-                      await ref.read(chatRepositoryProvider).sendMessage(
-                            receiverId: widget.contactId,
-                            content: ChatMessage.encodeProposal({
-                              'service': service,
-                              'amount': amount,
-                              'date': scheduledDate!.toIso8601String(),
-                              'time':
-                                  '${scheduledTime!.hour.toString().padLeft(2, '0')}:${scheduledTime!.minute.toString().padLeft(2, '0')}',
-                              'startsAt': startsAt.toUtc().toIso8601String(),
-                              'durationMinutes': durationMinutes,
-                              'notes': notes,
-                            }),
-                          );
-                      if (sheetContext.mounted &&
-                          sheetRoute?.isCurrent == true) {
-                        Navigator.pop(sheetContext);
+                  const SizedBox(height: 18),
+                  const Text('Horário *',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      Focus.of(context).requestFocus();
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: scheduledTime ?? TimeOfDay.now(),
+                      );
+                      if (!context.mounted) return;
+                      Focus.of(context).requestFocus();
+                      if (picked != null) {
+                        setSheetState(() {
+                          scheduledTime = picked;
+                          scheduleInPast = false;
+                        });
                       }
-                    } catch (error) {
-                      if (sheetContext.mounted &&
-                          sheetRoute?.isActive == true) {
-                        showErrorSnackBar(
-                            sheetContext, userFriendlyErrorMessage(error));
-                        setSheetState(() => sending = false);
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.access_time_outlined),
+                      ).copyWith(
+                        errorText: showScheduleErrors && scheduledTime == null
+                            ? 'Selecione um horário.'
+                            : scheduleInPast
+                                ? 'Escolha uma data e horário futuros.'
+                                : null,
+                      ),
+                      child: Text(
+                        scheduledTime == null
+                            ? 'Escolher horário'
+                            : '${scheduledTime!.hour.toString().padLeft(2, '0')}:${scheduledTime!.minute.toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          color: scheduledTime == null
+                              ? InkFlowColors.textMuted
+                              : InkFlowColors.text,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text('Duração estimada *',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<int>(
+                    initialValue: durationMinutes,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.timelapse_rounded),
+                    ),
+                    items: const [30, 60, 90, 120, 180, 240]
+                        .map((minutes) => DropdownMenuItem(
+                              value: minutes,
+                              child: Text(minutes < 60
+                                  ? '$minutes min'
+                                  : minutes % 60 == 0
+                                      ? '${minutes ~/ 60} h'
+                                      : '${minutes ~/ 60} h ${minutes % 60} min'),
+                            ))
+                        .toList(),
+                    onChanged: sending
+                        ? null
+                        : (value) => setSheetState(
+                              () => durationMinutes = value ?? 60,
+                            ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text('Observações',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    onSaved: (value) => notes = value?.trim() ?? '',
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'Inclua detalhes importantes (opcional)',
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  InkButton(
+                    label: 'Enviar proposta',
+                    isLoading: sending,
+                    onPressed: () async {
+                      if (sending) return;
+                      final validFields = formKey.currentState!.validate();
+                      setSheetState(() => showScheduleErrors = true);
+                      if (!validFields ||
+                          scheduledDate == null ||
+                          scheduledTime == null) {
+                        return;
                       }
-                    }
-                  },
-                ),
-              ],
+                      final isFuture = isFutureProposalSchedule(
+                        scheduledDate!,
+                        scheduledTime!.hour,
+                        scheduledTime!.minute,
+                        DateTime.now(),
+                      );
+                      setSheetState(() => scheduleInPast = !isFuture);
+                      if (!isFuture) {
+                        return;
+                      }
+                      final startsAt = DateTime(
+                        scheduledDate!.year,
+                        scheduledDate!.month,
+                        scheduledDate!.day,
+                        scheduledTime!.hour,
+                        scheduledTime!.minute,
+                      );
+                      setSheetState(() => sending = true);
+                      formKey.currentState!.save();
+                      final sheetRoute = ModalRoute.of(sheetContext);
+                      try {
+                        await ref.read(chatRepositoryProvider).sendMessage(
+                              receiverId: widget.contactId,
+                              content: ChatMessage.encodeProposal({
+                                'service': service,
+                                'amount': amount,
+                                'date': scheduledDate!.toIso8601String(),
+                                'time':
+                                    '${scheduledTime!.hour.toString().padLeft(2, '0')}:${scheduledTime!.minute.toString().padLeft(2, '0')}',
+                                'startsAt': startsAt.toUtc().toIso8601String(),
+                                'durationMinutes': durationMinutes,
+                                'notes': notes,
+                              }),
+                            );
+                        if (sheetContext.mounted &&
+                            sheetRoute?.isCurrent == true) {
+                          Navigator.pop(sheetContext);
+                        }
+                      } catch (error) {
+                        if (sheetContext.mounted &&
+                            sheetRoute?.isActive == true) {
+                          showErrorSnackBar(
+                              sheetContext, userFriendlyErrorMessage(error));
+                          setSheetState(() => sending = false);
+                        }
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -708,6 +725,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _openAnamnesis(ChatMessage message) async {
+    final proposal = message.proposal;
+    final start = proposal == null ? null : proposalStartAt(proposal);
+    if (start == null || !start.isAfter(DateTime.now())) {
+      setState(() {});
+      showErrorSnackBar(
+          context, 'O horário desta proposta não está disponível.');
+      return;
+    }
     final accepted = await context.push<bool>(
       '/anamnesis?proposalId=${Uri.encodeQueryComponent(message.id)}',
     );
@@ -1258,7 +1283,7 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-class _ProposalCard extends StatelessWidget {
+class _ProposalCard extends StatefulWidget {
   final Map<String, dynamic> proposal;
   final bool isMine;
   final String status;
@@ -1278,29 +1303,66 @@ class _ProposalCard extends StatelessWidget {
   });
 
   @override
+  State<_ProposalCard> createState() => _ProposalCardState();
+}
+
+class _ProposalCardState extends State<_ProposalCard> {
+  Timer? _expirationTimer;
+  DateTime? _start;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleExpiration();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProposalCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _scheduleExpiration();
+  }
+
+  void _scheduleExpiration() {
+    _expirationTimer?.cancel();
+    _start = proposalStartAt(widget.proposal);
+    final remaining = _start?.difference(DateTime.now());
+    if (widget.status == ChatMessage.proposalPending &&
+        remaining != null &&
+        remaining > Duration.zero) {
+      _expirationTimer = Timer(remaining, () => setState(() {}));
+    }
+  }
+
+  @override
+  void dispose() {
+    _expirationTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final _ProposalCard(
+      :proposal,
+      :status,
+      :isMine,
+      :onCancel,
+      :onAccept,
+      :onReject,
+      :onViewAnamnesis
+    ) = widget;
     final amount = double.tryParse(proposal['amount']?.toString() ?? '') ?? 0;
-    final scheduledDate = DateTime.tryParse(proposal['date']?.toString() ?? '');
-    final scheduledTime = proposal['time']?.toString();
+    final scheduledDate = _start?.toLocal();
     final durationMinutes =
         int.tryParse(proposal['durationMinutes']?.toString() ?? '') ?? 60;
     final notes = proposal['notes']?.toString().trim() ?? '';
-    final timeParts = scheduledTime?.split(':');
     final isExpired = status == ChatMessage.proposalPending &&
-        scheduledDate != null &&
-        timeParts?.length == 2 &&
-        !isFutureProposalSchedule(
-          scheduledDate,
-          int.tryParse(timeParts![0]) ?? 0,
-          int.tryParse(timeParts[1]) ?? 0,
-          DateTime.now(),
-        );
+        _start?.isAfter(DateTime.now()) != true;
     final displayStatus = isExpired ? 'expired' : status;
     final statusLabel = switch (displayStatus) {
       ChatMessage.proposalAccepted => 'Aceita',
       ChatMessage.proposalRejected => 'Recusada',
       ChatMessage.proposalCancelled => 'Cancelada',
-      'expired' => 'Expirada',
+      'expired' => _start == null ? 'Indisponível' : 'Expirada',
       _ => isMine ? 'Enviada' : 'Recebida',
     };
     final statusColor = switch (displayStatus) {
@@ -1318,7 +1380,9 @@ class _ProposalCard extends StatelessWidget {
       ChatMessage.proposalAccepted => 'Proposta aceita pelo cliente.',
       ChatMessage.proposalRejected => 'Proposta recusada pelo cliente.',
       ChatMessage.proposalCancelled => 'Esta proposta não está mais válida.',
-      'expired' => 'O horário desta proposta já passou.',
+      'expired' => _start == null
+          ? 'Esta proposta não tem um horário válido.'
+          : 'O horário desta proposta já passou.',
       _ => null,
     };
     final statusMessageColor = displayStatus == ChatMessage.proposalAccepted
@@ -1423,7 +1487,8 @@ class _ProposalCard extends StatelessWidget {
                                       fontSize: 10)),
                               const SizedBox(height: 2),
                               Text(
-                                '${DateFormat('dd/MM/yyyy').format(scheduledDate)}${scheduledTime == null ? '' : ' às $scheduledTime'}',
+                                DateFormat("dd/MM/yyyy 'às' HH:mm")
+                                    .format(scheduledDate),
                                 style: const TextStyle(
                                     color: InkFlowColors.text,
                                     fontSize: 13,

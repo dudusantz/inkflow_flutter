@@ -1,5 +1,30 @@
 import 'dart:convert';
 
+import 'package:inkflow/core/utils/time_slot.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
+
+final _proposalTimeZone = (() {
+  tzdata.initializeTimeZones();
+  return tz.getLocation('America/Sao_Paulo');
+})();
+
+DateTime? proposalStartAt(Map<String, dynamic> proposal) {
+  final startsAt = proposal['startsAt'];
+  if (startsAt != null) return DateTime.tryParse(startsAt.toString());
+
+  // Legacy proposals use the São Paulo timezone, as in the acceptance RPC.
+  final date = DateTime.tryParse(proposal['date']?.toString() ?? '');
+  final time = proposal['time']?.toString().trim();
+  final minutes = TimeSlot.parseMinutes(time);
+  if (date == null || minutes == null) return null;
+  final parts = time!.split(':');
+  final seconds = parts.length == 3 ? int.parse(parts[2]) : 0;
+  if (seconds > 59) return null;
+  return tz.TZDateTime(_proposalTimeZone, date.year, date.month, date.day,
+      minutes ~/ 60, minutes % 60, seconds);
+}
+
 bool isFutureProposalSchedule(
         DateTime date, int hour, int minute, DateTime now) =>
     DateTime(date.year, date.month, date.day, hour, minute).isAfter(now);
