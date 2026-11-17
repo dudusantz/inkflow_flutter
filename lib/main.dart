@@ -10,6 +10,7 @@ import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/notifications/push_notification_service.dart';
 import 'package:inkflow/features/schedule/services/appointment_notification_service.dart';
 import 'router.dart';
+import 'package:inkflow/features/auth/data/saved_accounts.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,8 +65,12 @@ Future<void> main() async {
   };
 
   runApp(
-    const ProviderScope(
-      child: InkFlowApp(),
+    ValueListenableBuilder<int>(
+      valueListenable: accountSwitchGeneration,
+      builder: (_, generation, child) => ProviderScope(
+        key: ValueKey(generation),
+        child: const InkFlowApp(),
+      ),
     ),
   );
 }
@@ -119,11 +124,11 @@ class InkFlowApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final pushNotifications = ref.watch(pushNotificationServiceProvider);
     ref.watch(appointmentNotificationServiceProvider).setRouteHandler((route) {
-      final context = rootNavigatorKey.currentContext;
+      final context = router.routerDelegate.navigatorKey.currentContext;
       if (context != null) context.go(route);
     });
     pushNotifications.setPermissionDeniedHandler(() {
-      final context = rootNavigatorKey.currentContext;
+      final context = router.routerDelegate.navigatorKey.currentContext;
       if (context == null) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text(

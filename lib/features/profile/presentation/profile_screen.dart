@@ -3,18 +3,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:inkflow/core/errors/error_utils.dart';
+import 'package:inkflow/core/data/supabase_providers.dart';
 import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/auth/providers/auth_provider.dart';
+import 'package:inkflow/features/auth/data/saved_accounts.dart';
+import 'package:inkflow/features/auth/presentation/switch_account_screen.dart';
 import 'package:inkflow/features/profile/domain/user_profile.dart';
 import 'package:inkflow/features/profile/providers/profile_provider.dart';
+import 'package:inkflow/features/schedule/services/appointment_notification_service.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     try {
-      await ref.read(authRepositoryProvider).signOut();
+      final auth = ref.read(authRepositoryProvider);
+      if (supportsAccountSwitching) {
+        final client = ref.read(supabaseClientProvider);
+        final reminders = ref.read(appointmentNotificationServiceProvider);
+        final id = client.auth.currentUser?.id;
+        if (id != null) await SavedAccounts(client).forget(id);
+        await reminders.clear();
+      }
+      await auth.signOut();
       // O redirect do router leva para '/' assim que a sessão cai.
     } catch (e) {
       if (context.mounted) {
@@ -91,6 +103,11 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 28),
           const _SectionLabel('Sua conta'),
           const SizedBox(height: 12),
+          if (supportsAccountSwitching)
+            _buildListTile(Icons.switch_account_outlined, 'Trocar de conta',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => const SwitchAccountScreen(),
+                    ))),
           _buildListTile(Icons.person_outline, 'Dados pessoais',
               onTap: () => context.push('/edit-profile')),
           _buildListTile(Icons.lock_outline, 'Alterar Senha',

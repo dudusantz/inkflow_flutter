@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:inkflow/core/data/supabase_providers.dart';
+import 'package:inkflow/features/auth/data/saved_accounts.dart';
+import 'package:inkflow/features/schedule/services/appointment_notification_service.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,7 +52,9 @@ class CpfValidator {
 }
 
 class RegisterScreen extends ConsumerStatefulWidget {
-  const RegisterScreen({super.key});
+  final bool addingAccount;
+
+  const RegisterScreen({super.key, this.addingAccount = false});
 
   @override
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
@@ -140,15 +145,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         final String cleanEmail =
             _email.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '');
 
-        // Dispara a requisição para o banco
-        await ref.read(authRepositoryProvider).signUp(
+        final repository = ref.read(authRepositoryProvider);
+        Future<AuthResponse> register([GoTrueClient? auth]) =>
+            repository.signUp(
               email: cleanEmail,
               password: _password,
               name: _name,
               cpf: cleanCpf,
               dateOfBirth: cleanDate,
               guardianCpf: _isUnderage ? cleanGuardianCpf : null,
+              authClient: auth,
             );
+        if (widget.addingAccount) {
+          final accounts = SavedAccounts(ref.read(supabaseClientProvider));
+          final reminders = ref.read(appointmentNotificationServiceProvider);
+          final signedIn = await accounts.register(register,
+              clearReminders: reminders.clear);
+          if (!signedIn && mounted) Navigator.of(context).pop(cleanEmail);
+          return;
+        }
+        await register();
 
         // 👇 CORREÇÃO: O que fazer quando dá certo
         if (mounted) {
@@ -223,8 +239,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const AppHeader(
-                title: 'Criar Conta', showBack: true, backTo: '/', dark: true),
+            if (widget.addingAccount)
+              const SizedBox(
+                height: kToolbarHeight,
+                child: Row(children: [
+                  BackButton(color: Colors.white),
+                  Text('Criar Conta', style: TextStyle(color: Colors.white)),
+                ]),
+              )
+            else
+              const AppHeader(
+                  title: 'Criar Conta',
+                  showBack: true,
+                  backTo: '/',
+                  dark: true),
             Expanded(child: _buildForm()),
           ],
         ),
@@ -265,7 +293,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         ),
                       ],
                     ),
-                    if (_duplicateField != null) ...[
+                    if (_duplicateField != null && !widget.addingAccount) ...[
                       const SizedBox(height: 8),
                       GestureDetector(
                         onTap: _goToPasswordRecovery,
@@ -406,25 +434,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               isLoading: _isLoading,
             ),
             const SizedBox(height: 20),
-            Center(
-              child: Text.rich(
-                TextSpan(
-                  style:
-                      const TextStyle(color: Color(0x66FFFFFF), fontSize: 12),
-                  children: [
-                    const TextSpan(text: 'Já tem conta? '),
-                    WidgetSpan(
-                      child: GestureDetector(
-                        onTap: () => context.go('/'),
-                        child: const Text('Entrar',
-                            style: TextStyle(
-                                color: InkFlowColors.accent, fontSize: 12)),
+            if (!widget.addingAccount)
+              Center(
+                child: Text.rich(
+                  TextSpan(
+                    style:
+                        const TextStyle(color: Color(0x66FFFFFF), fontSize: 12),
+                    children: [
+                      const TextSpan(text: 'Já tem conta? '),
+                      WidgetSpan(
+                        child: GestureDetector(
+                          onTap: () => context.go('/'),
+                          child: const Text('Entrar',
+                              style: TextStyle(
+                                  color: InkFlowColors.accent, fontSize: 12)),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 20),
           ],
         ),

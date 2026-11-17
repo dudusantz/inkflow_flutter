@@ -48,12 +48,12 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
       backgroundColor: InkFlowColors.background,
       body: SafeArea(
         top: false,
-        child: Column(
-          children: [
-            _buildHeader(profile?.firstName ?? 'Cliente', profile?.avatarUrl),
-            _buildQuickActions(),
-            Expanded(
-              child: SingleChildScrollView(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              _buildHeader(profile?.firstName ?? 'Cliente', profile?.avatarUrl),
+              _buildQuickActions(),
+              Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 child: ResponsiveBody(
                   maxWidth: 920,
@@ -76,8 +76,8 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: const AppBottomNav(currentIndex: 0),
@@ -162,26 +162,29 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
   }
 
   Widget _actionButton(IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-                color: InkFlowColors.accent.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(16)),
-            child: Icon(icon, color: InkFlowColors.accentDark, size: 25),
-          ),
-          const SizedBox(height: 8),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF4B5563))),
-        ],
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: InkFlowColors.accent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(16)),
+              child: Icon(icon, color: InkFlowColors.accentDark, size: 25),
+            ),
+            const SizedBox(height: 8),
+            Text(label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF4B5563))),
+          ],
+        ),
       ),
     );
   }
@@ -215,11 +218,14 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title,
-            style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: InkFlowColors.primary)),
+        Flexible(
+          child: Text(title,
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: InkFlowColors.primary)),
+        ),
+        const SizedBox(width: 8),
         GestureDetector(
             onTap: onTap,
             child: Text(action,

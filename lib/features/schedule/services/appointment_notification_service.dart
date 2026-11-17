@@ -107,6 +107,12 @@ class AppointmentNotificationService {
     await initialize();
     await _plugin.cancel(id: notificationIdForAppointment(appointmentId));
   }
+
+  Future<void> clear() async {
+    if (!_isSupported) return;
+    await initialize();
+    await _plugin.cancelAll();
+  }
 }
 
 @visibleForTesting

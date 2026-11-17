@@ -31,8 +31,6 @@ import 'package:inkflow/features/schedule/presentation/schedule_screen.dart';
 import 'package:inkflow/features/search/presentation/artist_profile_screen.dart';
 import 'package:inkflow/features/search/presentation/search_screen.dart';
 
-final rootNavigatorKey = GlobalKey<NavigatorState>();
-
 /// Rotas acessiveis sem sessao ativa.
 const _publicRoutes = {'/', '/register', '/callback'};
 
@@ -84,8 +82,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = GoRouterRefreshStream(supabase.auth.onAuthStateChange);
   ref.onDispose(refresh.dispose);
 
-  return GoRouter(
-    navigatorKey: rootNavigatorKey,
+  final router = GoRouter(
+    navigatorKey: GlobalKey<NavigatorState>(),
     initialLocation: '/',
     refreshListenable: refresh,
     redirect: (context, state) => authRedirect(
@@ -108,9 +106,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/artist/:artistId',
         builder: (context, state) => ArtistProfileScreen(
           artistId: state.pathParameters['artistId']!,
-          chatContact: state.extra is ChatContact
-              ? state.extra as ChatContact
-              : null,
+          chatContact:
+              state.extra is ChatContact ? state.extra as ChatContact : null,
         ),
       ),
       GoRoute(path: '/inbox', builder: (context, state) => const InboxScreen()),
@@ -176,4 +173,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/privacy', builder: (context, state) => const PrivacyScreen()),
     ],
   );
+  ref.onDispose(router.dispose);
+  return router;
 });

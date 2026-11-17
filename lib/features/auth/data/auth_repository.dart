@@ -116,12 +116,13 @@ class AuthRepository {
     required String cpf,
     required String dateOfBirth,
     String? guardianCpf,
+    GoTrueClient? authClient,
   }) async {
     try {
-      final response = await _supabase.auth.signUp(
+      final response = await (authClient ?? _supabase.auth).signUp(
         email: email,
         password: password,
-        emailRedirectTo: authCallbackUrl,
+        emailRedirectTo: authClient == null ? authCallbackUrl : null,
         data: {
           'name': name,
           'cpf': cpf,
