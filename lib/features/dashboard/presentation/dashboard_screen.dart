@@ -8,6 +8,7 @@ import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/finance/data/finance_repository.dart';
 import 'package:inkflow/features/finance/domain/financial_record.dart';
 import 'package:inkflow/features/finance/services/financial_report_service.dart';
+import 'package:inkflow/features/finance/presentation/document_preview.dart';
 import 'package:inkflow/features/schedule/data/appointment_repository.dart';
 import 'package:inkflow/features/schedule/domain/appointment.dart';
 
@@ -159,10 +160,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     setState(() => _generatingReport = true);
     try {
       final range = _selectedRange;
-      await FinancialReportService.preview(
+      final bytes = await FinancialReportService.build(
         records: _filteredFinancialRecords,
         start: range.start,
         end: range.end,
+      );
+      if (!mounted) return;
+      final date = DateFormat('yyyyMMdd');
+      await showDocumentPreview(
+        context,
+        title: 'Relatório financeiro',
+        filename: 'relatorio-financeiro-${date.format(range.start)}-'
+            '${date.format(range.end)}.pdf',
+        bytes: bytes,
       );
     } catch (error) {
       if (mounted) {

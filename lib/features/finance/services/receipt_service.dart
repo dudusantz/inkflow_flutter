@@ -2,7 +2,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import 'package:inkflow/features/finance/domain/financial_record.dart';
 
@@ -215,27 +214,6 @@ class ReceiptService {
       ),
     );
     return document.save();
-  }
-
-  static Future<void> previewReceipt({
-    required FinancialRecord payment,
-    required Map<String, dynamic>? fiscalProfile,
-  }) async {
-    final bytes = await buildReceipt(
-      payment: payment,
-      fiscalProfile: fiscalProfile,
-    );
-    final filename = 'documento-servico-${payment.id.substring(0, 8)}.pdf';
-    try {
-      final opened = await Printing.layoutPdf(
-        name: filename,
-        onLayout: (_) async => bytes,
-      );
-      if (opened) return;
-    } catch (_) {
-      // Alguns navegadores não oferecem a pré-visualização nativa.
-    }
-    await Printing.sharePdf(bytes: bytes, filename: filename);
   }
 
   static pw.Widget _section(String title, List<pw.TableRow> rows) => pw.Padding(

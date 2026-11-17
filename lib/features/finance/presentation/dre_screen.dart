@@ -9,6 +9,7 @@ import 'package:inkflow/features/finance/data/finance_repository.dart';
 import 'package:inkflow/features/finance/domain/dre_summary.dart';
 import 'package:inkflow/features/finance/domain/financial_record.dart';
 import 'package:inkflow/features/finance/services/dre_report_service.dart';
+import 'package:inkflow/features/finance/presentation/document_preview.dart';
 
 class DreScreen extends ConsumerStatefulWidget {
   const DreScreen({super.key});
@@ -57,18 +58,27 @@ class _DreScreenState extends ConsumerState<DreScreen> {
   ) async {
     setState(() => _generatingPdf = true);
     try {
+      final start = _range.start;
       final end = DateTime(
           _range.end.year, _range.end.month, _range.end.day, 23, 59, 59);
       final filtered = records.where((record) =>
-          !record.date.isBefore(_range.start) && !record.date.isAfter(end));
+          !record.date.isBefore(start) && !record.date.isAfter(end));
       final taxRate =
           double.tryParse(profile?['tax_rate']?.toString() ?? '') ?? 0;
-      await DreReportService.preview(
+      final bytes = await DreReportService.build(
         dre: DreSummary.fromRecords(filtered, taxRate: taxRate),
-        start: _range.start,
+        start: start,
         end: _range.end,
         studioName: profile?['trade_name']?.toString() ??
             profile?['legal_name']?.toString(),
+      );
+      if (!mounted) return;
+      final date = DateFormat('yyyyMMdd');
+      await showDocumentPreview(
+        context,
+        title: 'DRE gerencial',
+        filename: 'dre-${date.format(start)}-${date.format(end)}.pdf',
+        bytes: bytes,
       );
     } catch (error) {
       if (mounted) showErrorSnackBar(context, userFriendlyErrorMessage(error));

@@ -2,7 +2,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import 'package:inkflow/features/finance/domain/dre_summary.dart';
 
@@ -130,30 +129,5 @@ class DreReportService {
       ),
     );
     return document.save();
-  }
-
-  static Future<void> preview({
-    required DreSummary dre,
-    required DateTime start,
-    required DateTime end,
-    String? studioName,
-  }) async {
-    final bytes = await build(
-      dre: dre,
-      start: start,
-      end: end,
-      studioName: studioName,
-    );
-    final filename =
-        'dre-${DateFormat('yyyyMMdd').format(start)}-${DateFormat('yyyyMMdd').format(end)}.pdf';
-    try {
-      if (await Printing.layoutPdf(
-          name: filename, onLayout: (_) async => bytes)) {
-        return;
-      }
-    } catch (_) {
-      // Alguns navegadores não oferecem pré-visualização nativa.
-    }
-    await Printing.sharePdf(bytes: bytes, filename: filename);
   }
 }

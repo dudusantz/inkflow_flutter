@@ -2,7 +2,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import 'package:inkflow/features/finance/domain/financial_record.dart';
 
@@ -194,26 +193,6 @@ class FinancialReportService {
       ),
     );
     return document.save();
-  }
-
-  static Future<void> preview({
-    required List<FinancialRecord> records,
-    required DateTime start,
-    required DateTime end,
-  }) async {
-    final bytes = await build(records: records, start: start, end: end);
-    final filename =
-        'relatorio-financeiro-${DateFormat('yyyyMMdd').format(start)}-${DateFormat('yyyyMMdd').format(end)}.pdf';
-    try {
-      final opened = await Printing.layoutPdf(
-        name: filename,
-        onLayout: (_) async => bytes,
-      );
-      if (opened) return;
-    } catch (_) {
-      // Alguns navegadores não oferecem pré-visualização nativa.
-    }
-    await Printing.sharePdf(bytes: bytes, filename: filename);
   }
 
   static pw.Widget _summary(String label, String value, PdfColor color) =>

@@ -10,6 +10,7 @@ import 'package:inkflow/core/theme/app_theme.dart';
 import 'package:inkflow/core/widgets/shared_widgets.dart';
 import 'package:inkflow/features/finance/data/finance_repository.dart';
 import 'package:inkflow/features/finance/domain/financial_record.dart';
+import 'package:inkflow/features/finance/presentation/document_preview.dart';
 import 'package:inkflow/features/finance/services/receipt_service.dart';
 import 'package:inkflow/features/schedule/data/appointment_repository.dart';
 import 'package:inkflow/features/schedule/domain/appointment.dart';
@@ -49,9 +50,16 @@ class StudioManagementScreen extends ConsumerWidget {
                     final fiscal = await ref
                         .read(financeRepositoryProvider)
                         .getFiscalProfile();
-                    await ReceiptService.previewReceipt(
+                    final bytes = await ReceiptService.buildReceipt(
                       payment: payment,
                       fiscalProfile: fiscal,
+                    );
+                    if (!context.mounted) return;
+                    await showDocumentPreview(
+                      context,
+                      title: 'Documento de serviço',
+                      filename: 'documento-servico-${payment.id}.pdf',
+                      bytes: bytes,
                     );
                   } catch (error) {
                     if (context.mounted) {
